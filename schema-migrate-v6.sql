@@ -1,0 +1,43 @@
+USE biazo_travel;
+
+CREATE TABLE IF NOT EXISTS payment_ledger (
+  id                          CHAR(36)      NOT NULL PRIMARY KEY,
+  user_id                     CHAR(36)      NOT NULL,
+  order_type                  VARCHAR(50)   NOT NULL DEFAULT 'flight_application',
+  order_id                    CHAR(36)      NOT NULL,
+  charge_id                   VARCHAR(64)   NOT NULL,
+  payment_method              ENUM('mobile_money','bank','card') NOT NULL,
+  amount_mwk                  DECIMAL(14,2) NOT NULL,
+  currency                    VARCHAR(3)    NOT NULL DEFAULT 'MWK',
+  status                      ENUM('pending','completed','failed','expired') NOT NULL DEFAULT 'pending',
+  order_snapshot              JSON          NOT NULL,
+  paychangu_ref_id            VARCHAR(100)  NULL,
+  paychangu_status            VARCHAR(50)   NULL,
+  provider_response           JSON          NULL,
+  bank_name                   VARCHAR(120)  NULL,
+  bank_account_number         VARCHAR(50)   NULL,
+  bank_account_name           VARCHAR(200)  NULL,
+  bank_expires_at             DATETIME      NULL,
+  card_requires_3ds           TINYINT(1)    NOT NULL DEFAULT 0,
+  card_3ds_url                TEXT          NULL,
+  mobile_number               VARCHAR(32)   NULL,
+  mobile_operator_ref_id      VARCHAR(64)   NULL,
+  mobile_operator_name        VARCHAR(80)   NULL,
+  verification_window_minutes TINYINT       NOT NULL DEFAULT 5,
+  expires_at                  DATETIME      NOT NULL,
+  completed_at                DATETIME      NULL,
+  order_fulfilled_at          DATETIME      NULL,
+  last_verified_at            DATETIME      NULL,
+  verification_attempts       INT           NOT NULL DEFAULT 0,
+  failure_reason              VARCHAR(500)  NULL,
+  created_at                  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at                  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_payment_ledger_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_payment_ledger_charge (charge_id),
+  INDEX idx_payment_ledger_status (status),
+  INDEX idx_payment_ledger_order (order_type, order_id),
+  INDEX idx_payment_ledger_expires (expires_at),
+  INDEX idx_payment_ledger_completed (completed_at)
+) ENGINE=InnoDB;
+
+ALTER TABLE flight_applications ADD COLUMN payment_ledger_id CHAR(36) NULL AFTER paid_at;
