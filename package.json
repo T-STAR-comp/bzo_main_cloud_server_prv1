@@ -1,12 +1,12 @@
 {
   "name": "biazo-server",
   "private": true,
-  "type": "module",
+  "main": "server.cjs",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js",
+    "start": "node server.cjs",
     "build": "tsc",
-    "db:setup": "tsx src/scripts/apply-schema.ts"
+    "db:setup": "npm run build && node dist/scripts/apply-schema.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

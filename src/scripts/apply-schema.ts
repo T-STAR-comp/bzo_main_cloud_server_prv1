@@ -1,21 +1,20 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import mysql from "mysql2/promise";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const schemaPath = path.resolve(__dirname, "../../schema.sql");
-const migrateV2 = path.resolve(__dirname, "../../schema-migrate-v2.sql");
-const migrateV3 = path.resolve(__dirname, "../../schema-migrate-v3.sql");
-const migrateV4 = path.resolve(__dirname, "../../schema-migrate-v4.sql");
-const migrateV5 = path.resolve(__dirname, "../../schema-migrate-v5.sql");
-const migrateV6 = path.resolve(__dirname, "../../schema-migrate-v6.sql");
-const migrateV7 = path.resolve(__dirname, "../../schema-migrate-v7.sql");
-const migrateV8 = path.resolve(__dirname, "../../schema-migrate-v8.sql");
-const migrateV9 = path.resolve(__dirname, "../../schema-migrate-v9.sql");
-const migrateV10 = path.resolve(__dirname, "../../schema-migrate-v10.sql");
+const rootDir = process.cwd();
+const schemaPath = path.resolve(rootDir, "schema.sql");
+const migrateV2 = path.resolve(rootDir, "schema-migrate-v2.sql");
+const migrateV3 = path.resolve(rootDir, "schema-migrate-v3.sql");
+const migrateV4 = path.resolve(rootDir, "schema-migrate-v4.sql");
+const migrateV5 = path.resolve(rootDir, "schema-migrate-v5.sql");
+const migrateV6 = path.resolve(rootDir, "schema-migrate-v6.sql");
+const migrateV7 = path.resolve(rootDir, "schema-migrate-v7.sql");
+const migrateV8 = path.resolve(rootDir, "schema-migrate-v8.sql");
+const migrateV9 = path.resolve(rootDir, "schema-migrate-v9.sql");
+const migrateV10 = path.resolve(rootDir, "schema-migrate-v10.sql");
 
 function stripComments(sql: string) {
   return sql
