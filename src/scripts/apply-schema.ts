@@ -15,6 +15,8 @@ const migrateV7 = path.resolve(rootDir, "schema-migrate-v7.sql");
 const migrateV8 = path.resolve(rootDir, "schema-migrate-v8.sql");
 const migrateV9 = path.resolve(rootDir, "schema-migrate-v9.sql");
 const migrateV10 = path.resolve(rootDir, "schema-migrate-v10.sql");
+const migrateV11 = path.resolve(rootDir, "schema-migrate-v11.sql");
+const migrateV12 = path.resolve(rootDir, "schema-migrate-v12.sql");
 
 function stripComments(sql: string) {
   return sql
@@ -114,6 +116,16 @@ async function main() {
 
     if (fs.existsSync(migrateV10)) {
       const migrate = fs.readFileSync(migrateV10, "utf8");
+      await runStatements(conn, splitStatements(migrate));
+    }
+
+    if (fs.existsSync(migrateV11)) {
+      const migrate = fs.readFileSync(migrateV11, "utf8");
+      await runStatements(conn, splitStatements(migrate));
+    }
+
+    if (fs.existsSync(migrateV12)) {
+      const migrate = fs.readFileSync(migrateV12, "utf8");
       await runStatements(conn, splitStatements(migrate));
     }
 

@@ -1,8 +1,8 @@
 -- Biazo Travel Agency — MySQL schema
 -- Run: mysql -u root -p < schema.sql
 --
--- If you get a foreign-key error on email_codes (user_id vs users.id),
--- an old users table may already exist. For a fresh dev database run:
+-- If you get a foreign-key error on email_codes or refresh_sessions (user_id vs users.id),
+-- column charset/collation must match users.id (utf8mb4_unicode_ci). For a fresh database run:
 --   DROP DATABASE IF EXISTS biazo_travel;
 -- then run this file again.
 
@@ -58,8 +58,8 @@ CREATE TABLE IF NOT EXISTS email_codes (
 -- Refresh token sessions
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS refresh_sessions (
-  id                 CHAR(36)     NOT NULL PRIMARY KEY,
-  user_id            CHAR(36)     NOT NULL,
+  id                 CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL PRIMARY KEY,
+  user_id            CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   refresh_token_hash VARCHAR(255) NOT NULL,
   expires_at         DATETIME     NOT NULL,
   revoked_at         DATETIME     NULL,
@@ -69,13 +69,13 @@ CREATE TABLE IF NOT EXISTS refresh_sessions (
   CONSTRAINT fk_refresh_sessions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_refresh_sessions_user (user_id),
   INDEX idx_refresh_sessions_expires (expires_at)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
 -- Travel & display preferences (1:1 with user)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS user_preferences (
-  user_id              CHAR(36)     NOT NULL PRIMARY KEY,
+  user_id              CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL PRIMARY KEY,
   cabin_class          VARCHAR(50)  NOT NULL DEFAULT 'Economy',
   seat_preference      VARCHAR(50)  NOT NULL DEFAULT 'No preference',
   meal                 VARCHAR(50)  NOT NULL DEFAULT 'No preference',
@@ -99,8 +99,8 @@ CREATE TABLE IF NOT EXISTS user_preferences (
 -- Payment methods (never store full PAN — last four + token reference only)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS payment_methods (
-  id               CHAR(36)     NOT NULL PRIMARY KEY,
-  user_id          CHAR(36)     NOT NULL,
+  id               CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL PRIMARY KEY,
+  user_id          CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   brand            VARCHAR(20)  NOT NULL,
   last_four        CHAR(4)      NOT NULL,
   cardholder_name  VARCHAR(200) NOT NULL,
@@ -120,7 +120,7 @@ CREATE TABLE IF NOT EXISTS payment_methods (
 -- Travel credit balance (MWK)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS travel_credit (
-  user_id    CHAR(36)    NOT NULL PRIMARY KEY,
+  user_id    CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL PRIMARY KEY,
   balance_mwk DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   updated_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_travel_credit_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -130,9 +130,9 @@ CREATE TABLE IF NOT EXISTS travel_credit (
 -- Bookings
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS bookings (
-  id              CHAR(36)     NOT NULL PRIMARY KEY,
-  user_id         CHAR(36)     NOT NULL,
-  flight_departure_id CHAR(36) NULL,
+  id              CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL PRIMARY KEY,
+  user_id         CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  flight_departure_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
   pnr             VARCHAR(20)  NOT NULL,
   status          ENUM('pending','confirmed','completed','cancelled') NOT NULL DEFAULT 'confirmed',
   origin_code     CHAR(3)      NOT NULL,
@@ -157,9 +157,9 @@ CREATE TABLE IF NOT EXISTS bookings (
 -- Ticket segments (linked to bookings)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS tickets (
-  id            CHAR(36)     NOT NULL PRIMARY KEY,
-  booking_id    CHAR(36)     NOT NULL,
-  user_id       CHAR(36)     NOT NULL,
+  id            CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL PRIMARY KEY,
+  booking_id    CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  user_id       CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   passenger_names VARCHAR(500) NULL,
   segment_order TINYINT      NOT NULL DEFAULT 1,
   origin_code   CHAR(3)      NOT NULL,
@@ -186,7 +186,7 @@ CREATE TABLE IF NOT EXISTS tickets (
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS audit_logs (
   id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  user_id    CHAR(36)     NULL,
+  user_id    CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
   level      ENUM('info','warn','error') NOT NULL DEFAULT 'info',
   action     VARCHAR(120) NOT NULL,
   metadata   JSON         NULL,
@@ -201,8 +201,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 -- User account issues (admin flags)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS user_account_issues (
-  id          CHAR(36)     NOT NULL PRIMARY KEY,
-  user_id     CHAR(36)     NOT NULL,
+  id          CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL PRIMARY KEY,
+  user_id     CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   severity    ENUM('low','medium','high','critical') NOT NULL DEFAULT 'medium',
   title       VARCHAR(200) NOT NULL,
   description TEXT         NULL,
@@ -252,14 +252,14 @@ CREATE TABLE IF NOT EXISTS flight_departures (
 
 -- flight_departure_id FK added via schema-migrate-v2.sql for existing databases
 CREATE TABLE IF NOT EXISTS finance_ledger (
-  id          CHAR(36)      NOT NULL PRIMARY KEY,
-  user_id     CHAR(36)      NULL,
-  booking_id  CHAR(36)      NULL,
+  id          CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL PRIMARY KEY,
+  user_id     CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
+  booking_id  CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
   entry_type  ENUM('payment','refund','credit','fee','payout','adjustment') NOT NULL,
   amount_mwk  DECIMAL(14,2) NOT NULL,
   description VARCHAR(255)  NOT NULL,
   reference   VARCHAR(100)  NULL,
-  created_by  CHAR(36)      NULL,
+  created_by  CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
   created_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_finance_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_finance_booking FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE SET NULL,
