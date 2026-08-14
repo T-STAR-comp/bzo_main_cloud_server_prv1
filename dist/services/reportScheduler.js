@@ -41,9 +41,12 @@ async function runScheduledReports() {
     await maybeSend("yearly", 364);
 }
 function startReportScheduler() {
-    void runScheduledReports();
-    setInterval(() => {
-        void runScheduledReports();
-    }, CHECK_INTERVAL_MS);
+    const safeRun = () => {
+        void runScheduledReports().catch((error) => {
+            logger_js_1.logger.error("Financial report scheduler run failed", error);
+        });
+    };
+    safeRun();
+    setInterval(safeRun, CHECK_INTERVAL_MS);
     logger_js_1.logger.info("Financial report scheduler started");
 }

@@ -101,9 +101,12 @@ export async function runDepartureReminders() {
 }
 
 export function startDepartureReminderScheduler() {
-  void runDepartureReminders();
-  setInterval(() => {
-    void runDepartureReminders();
-  }, CHECK_INTERVAL_MS);
+  const safeRun = () => {
+    void runDepartureReminders().catch((error) => {
+      logger.error("Departure reminder run failed", error);
+    });
+  };
+  safeRun();
+  setInterval(safeRun, CHECK_INTERVAL_MS);
   logger.info("Departure reminder scheduler started");
 }

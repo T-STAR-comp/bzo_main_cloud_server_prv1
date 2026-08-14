@@ -45,9 +45,12 @@ export async function runScheduledReports() {
 }
 
 export function startReportScheduler() {
-  void runScheduledReports();
-  setInterval(() => {
-    void runScheduledReports();
-  }, CHECK_INTERVAL_MS);
+  const safeRun = () => {
+    void runScheduledReports().catch((error) => {
+      logger.error("Financial report scheduler run failed", error);
+    });
+  };
+  safeRun();
+  setInterval(safeRun, CHECK_INTERVAL_MS);
   logger.info("Financial report scheduler started");
 }

@@ -1,6 +1,79 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { RowDataPacket } from "mysql2";
 import { pool } from "../db/pool.js";
 import { logger } from "../logger.js";
+
+const MIGRATION_FILES = [
+  "schema-migrate-v2.sql",
+  "schema-migrate-v3.sql",
+  "schema-migrate-v4.sql",
+  "schema-migrate-v5.sql",
+  "schema-migrate-v6.sql",
+  "schema-migrate-v7.sql",
+  "schema-migrate-v8.sql",
+  "schema-migrate-v9.sql",
+  "schema-migrate-v10.sql",
+  "schema-migrate-v11.sql",
+  "schema-migrate-v12.sql",
+];
+
+const SKIPPABLE_CODES = new Set([
+  "ER_DUP_FIELDNAME",
+  "ER_DUP_KEYNAME",
+  "ER_DUP_ENTRY",
+  "ER_CANT_CREATE_TABLE",
+  "ER_FK_DUP_NAME",
+  "ER_KEY_COLUMN_DOES_NOT_EXITS",
+  "ER_TABLE_EXISTS_ERROR",
+  "ER_DUP_TABLE",
+]);
+
+function prepareMigrationSql(raw: string) {
+  return raw
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("--"))
+    .join("\n")
+    .replace(/^\s*USE\s+[\w`]+\s*;\s*/gim, "");
+}
+
+function splitStatements(sql: string) {
+  return prepareMigrationSql(sql)
+    .split(";")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+async function runMigrationStatement(statement: string) {
+  try {
+    await pool.execute(statement);
+  } catch (error: unknown) {
+    const code = (error as { code?: string }).code;
+    if (code && SKIPPABLE_CODES.has(code)) return;
+    throw error;
+  }
+}
+
+async function ensureSqlMigrations() {
+  const rootDir = process.cwd();
+  let applied = 0;
+
+  for (const file of MIGRATION_FILES) {
+    const fullPath = path.join(rootDir, file);
+    if (!fs.existsSync(fullPath)) continue;
+
+    const statements = splitStatements(fs.readFileSync(fullPath, "utf8"));
+    for (const statement of statements) {
+      await runMigrationStatement(statement);
+      applied++;
+    }
+    logger.info(`Migration file processed: ${file}`);
+  }
+
+  if (applied > 0) {
+    logger.info(`Database migrations ensured (${applied} statements)`);
+  }
+}
 
 const PATCHES: { name: string; sql: string }[] = [
   {
@@ -120,6 +193,8 @@ const PATCHES: { name: string; sql: string }[] = [
 ];
 
 export async function ensureSchemaPatches() {
+  await ensureSqlMigrations();
+
   for (const patch of PATCHES) {
     try {
       await pool.execute(patch.sql);

@@ -3,7 +3,7 @@ USE biazo_travel;
 
 CREATE TABLE IF NOT EXISTS flight_applications (
   id                    CHAR(36)      NOT NULL PRIMARY KEY,
-  user_id               CHAR(36)      NOT NULL,
+  user_id               CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   reference_number      VARCHAR(24)   NOT NULL UNIQUE,
   status                ENUM(
     'pending','in_review','awaiting_payment','paid','purchasing','completed','cancelled'
