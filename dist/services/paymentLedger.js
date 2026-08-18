@@ -37,6 +37,7 @@ const WINDOW_MINUTES = {
     card: 5,
     hosted_checkout: 15,
     travel_credit: 0,
+    manual_transfer: 7 * 24 * 60,
 };
 function generateChargeId() {
     return `BZ-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
@@ -78,6 +79,13 @@ function mapLedgerPublic(row) {
         mobileNumber: row.mobile_number,
         mobileOperatorName: row.mobile_operator_name,
         checkoutUrl,
+        manualReference: row.manual_reference,
+        proofReviewStatus: row.proof_review_status ?? "none",
+        proofSubmittedAt: row.proof_submitted_at ? new Date(row.proof_submitted_at).toISOString() : null,
+        proofRejectionReason: row.proof_rejection_reason,
+        manualPaymentSources: snapshot && Array.isArray(snapshot.manualPaymentSources)
+            ? snapshot.manualPaymentSources
+            : null,
         expiresAt: new Date(row.expires_at).toISOString(),
         completedAt: row.completed_at ? new Date(row.completed_at).toISOString() : null,
         orderFulfilled: Boolean(row.order_fulfilled_at),
@@ -150,6 +158,7 @@ async function createLedgerEntry(input) {
       amount_mwk, payment_amount, currency, display_currency, status, order_snapshot,
       paychangu_ref_id, paychangu_status, provider_response,
       bank_name, bank_account_number, bank_account_name, bank_expires_at,
+      manual_reference,
       card_requires_3ds, card_3ds_url,
       mobile_number, mobile_operator_ref_id, mobile_operator_name,
       verification_window_minutes, expires_at
@@ -158,6 +167,7 @@ async function createLedgerEntry(input) {
       :amountMwk, :paymentAmount, :currency, :displayCurrency, 'pending', :orderSnapshot,
       :paychanguRefId, :paychanguStatus, :providerResponse,
       :bankName, :bankAccountNumber, :bankAccountName, :bankExpiresAt,
+      :manualReference,
       :cardRequires3ds, :card3dsUrl,
       :mobileNumber, :mobileOperatorRefId, :mobileOperatorName,
       :windowMinutes, :expiresAt
@@ -180,6 +190,7 @@ async function createLedgerEntry(input) {
         bankAccountNumber: input.bankDetails?.accountNumber ?? null,
         bankAccountName: input.bankDetails?.accountName ?? null,
         bankExpiresAt: input.bankDetails?.expiresAt ?? null,
+        manualReference: input.manualReference ?? null,
         cardRequires3ds: input.card3ds?.requires3ds ? 1 : 0,
         card3dsUrl: input.card3ds?.authUrl ?? null,
         mobileNumber: input.mobileNumber ?? null,
@@ -356,7 +367,9 @@ async function fulfillFlightApplicationInTransaction(conn, ledger) {
     const referenceNumber = snapshot.referenceNumber ?? applicationId;
     const paymentLabel = ledger.payment_method === "travel_credit"
         ? "Travel credit"
-        : `PayChangu ${ledger.payment_method}`;
+        : ledger.payment_method === "manual_transfer"
+            ? "Manual bank transfer"
+            : `PayChangu ${ledger.payment_method}`;
     await conn.execute(`INSERT INTO finance_ledger (id, user_id, entry_type, amount_mwk, description, reference, created_by)
      VALUES (:id, :userId, 'payment', :amount, :description, :reference, :userId)`, {
         id: financeId,
@@ -367,7 +380,9 @@ async function fulfillFlightApplicationInTransaction(conn, ledger) {
     });
     await (0, applications_js_1.recordApplicationEvent)(applicationId, "payment_received", ledger.payment_method === "travel_credit"
         ? `Payment received via travel credit. Ref ${ledger.charge_id}.`
-        : `Payment received via PayChangu (${ledger.payment_method}). Charge ${ledger.charge_id}.`, conn);
+        : ledger.payment_method === "manual_transfer"
+            ? `Payment confirmed after manual bank transfer review. Ref ${ledger.manual_reference ?? ledger.charge_id}.`
+            : `Payment received via PayChangu (${ledger.payment_method}). Charge ${ledger.charge_id}.`, conn);
     const userId = ledger.user_id;
     const amountMwk = Number(ledger.amount_mwk);
     return async () => {
@@ -385,10 +400,13 @@ async function fulfillFlightApplicationInTransaction(conn, ledger) {
 async function verifyAndProcessLedger(row, options) {
     if (row.status !== "pending")
         return row.status;
-    if (row.payment_method === "travel_credit") {
+    if (row.payment_method === "travel_credit" || row.payment_method === "manual_transfer") {
         return row.status;
     }
     if (new Date(row.expires_at).getTime() <= Date.now()) {
+        if (row.proof_review_status === "submitted") {
+            return "pending";
+        }
         await markLedgerExpired(row);
         return "expired";
     }

@@ -30,6 +30,7 @@ function stopPolling(ledgerId: string) {
 
 export function watchPaymentLedger(row: PaymentLedgerRow) {
   if (row.status !== "pending") return;
+  if (row.payment_method === "manual_transfer") return;
   if (row.payment_method === "hosted_checkout" && !hostedCheckoutReadyForVerify(row)) return;
   if (activePolls.has(row.id)) return;
 

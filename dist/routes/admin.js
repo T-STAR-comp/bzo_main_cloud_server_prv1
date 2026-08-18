@@ -15,6 +15,8 @@ const applicationEmails_js_1 = require("../services/applicationEmails.js");
 const applications_js_1 = require("../services/applications.js");
 const ticketUtils_js_1 = require("../services/ticketUtils.js");
 const fileStorage_js_1 = require("../services/fileStorage.js");
+const manualPaymentSources_js_1 = require("../services/manualPaymentSources.js");
+const manualPayments_js_1 = require("../services/manualPayments.js");
 const travelCredits_js_1 = require("../services/travelCredits.js");
 const crypto_js_1 = require("../utils/crypto.js");
 exports.adminRouter = (0, express_1.Router)();
@@ -60,6 +62,11 @@ function mapLedgerAdminDetail(row) {
         lastVerifiedAt: row.last_verified_at ? new Date(row.last_verified_at).toISOString() : null,
         verificationAttempts: Number(row.verification_attempts ?? 0),
         failureReason: row.failure_reason,
+        manualReference: row.manual_reference,
+        proofReviewStatus: row.proof_review_status ?? "none",
+        proofSubmittedAt: row.proof_submitted_at ? new Date(row.proof_submitted_at).toISOString() : null,
+        proofRejectionReason: row.proof_rejection_reason,
+        hasProof: Boolean(row.proof_file_path),
     };
 }
 function formatUserSummary(row) {
@@ -313,6 +320,78 @@ exports.adminRouter.get("/payments/ledger", (0, errorHandler_js_1.asyncHandler)(
             userName: `${row.first_name} ${row.last_name}`,
         })),
     });
+}));
+exports.adminRouter.get("/payments/ledger/:id/proof", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
+    const id = zod_1.z.string().uuid().parse(req.params.id);
+    const [rows] = await pool_js_1.pool.execute(`SELECT proof_file_path, proof_mime_type FROM payment_ledger WHERE id = :id`, { id });
+    const row = rows[0];
+    if (!row?.proof_file_path)
+        throw new errorHandler_js_1.AppError(404, "Proof not found");
+    const buffer = await (0, fileStorage_js_1.readStoredFile)(row.proof_file_path);
+    const mime = row.proof_mime_type ?? "application/octet-stream";
+    res.setHeader("Content-Type", mime);
+    res.setHeader("Content-Disposition", `inline; filename="payment-proof-${id}"`);
+    res.send(buffer);
+}));
+exports.adminRouter.post("/payments/ledger/:id/approve-proof", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
+    const id = zod_1.z.string().uuid().parse(req.params.id);
+    const row = await (0, manualPayments_js_1.approveManualPaymentProof)(id, req.user.id);
+    res.json({ payment: mapLedgerAdminDetail(row), message: "Payment approved" });
+}));
+exports.adminRouter.post("/payments/ledger/:id/reject-proof", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
+    const id = zod_1.z.string().uuid().parse(req.params.id);
+    const body = zod_1.z.object({ reason: zod_1.z.string().min(3).max(500) }).parse(req.body);
+    const row = await (0, manualPayments_js_1.rejectManualPaymentProof)(id, req.user.id, body.reason);
+    res.json({ payment: mapLedgerAdminDetail(row), message: "Proof rejected" });
+}));
+exports.adminRouter.get("/payment-sources", (0, errorHandler_js_1.asyncHandler)(async (_req, res) => {
+    const sources = await (0, manualPaymentSources_js_1.listManualPaymentSources)(false);
+    res.json({ sources });
+}));
+const paymentSourceSchema = zod_1.z.object({
+    label: zod_1.z.string().min(1).max(120),
+    bankName: zod_1.z.string().min(1).max(120),
+    accountName: zod_1.z.string().min(1).max(200),
+    accountNumber: zod_1.z.string().min(1).max(80),
+    branchCode: zod_1.z.string().max(80).optional().nullable(),
+    swiftCode: zod_1.z.string().max(40).optional().nullable(),
+    currency: zod_1.z.string().length(3).default("MWK"),
+    instructions: zod_1.z.string().max(2000).optional().nullable(),
+    sortOrder: zod_1.z.number().int().min(0).max(9999).optional(),
+    isActive: zod_1.z.boolean().optional(),
+});
+exports.adminRouter.post("/payment-sources", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
+    const body = paymentSourceSchema.parse(req.body);
+    const source = await (0, manualPaymentSources_js_1.createManualPaymentSource)(body);
+    await (0, audit_js_1.writeAuditLog)({
+        userId: req.user.id,
+        action: "payment_source.created",
+        metadata: { sourceId: source.id, label: source.label },
+    });
+    res.status(201).json({ source });
+}));
+exports.adminRouter.patch("/payment-sources/:id", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
+    const id = zod_1.z.string().uuid().parse(req.params.id);
+    const body = paymentSourceSchema.partial().parse(req.body);
+    const source = await (0, manualPaymentSources_js_1.updateManualPaymentSource)(id, body);
+    if (!source)
+        throw new errorHandler_js_1.AppError(404, "Payment source not found");
+    await (0, audit_js_1.writeAuditLog)({
+        userId: req.user.id,
+        action: "payment_source.updated",
+        metadata: { sourceId: id },
+    });
+    res.json({ source });
+}));
+exports.adminRouter.delete("/payment-sources/:id", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
+    const id = zod_1.z.string().uuid().parse(req.params.id);
+    await (0, manualPaymentSources_js_1.deleteManualPaymentSource)(id);
+    await (0, audit_js_1.writeAuditLog)({
+        userId: req.user.id,
+        action: "payment_source.deleted",
+        metadata: { sourceId: id },
+    });
+    res.json({ message: "Payment source removed" });
 }));
 exports.adminRouter.get("/finance", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
     const { from, to } = parseDateRange(req.query);

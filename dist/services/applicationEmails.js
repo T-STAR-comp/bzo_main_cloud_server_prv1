@@ -4,6 +4,7 @@ exports.emailApplicationSubmitted = emailApplicationSubmitted;
 exports.emailApplicationInReview = emailApplicationInReview;
 exports.emailApplicationQuoted = emailApplicationQuoted;
 exports.emailApplicationPaidAdmin = emailApplicationPaidAdmin;
+exports.emailManualPaymentProofSubmittedAdmin = emailManualPaymentProofSubmittedAdmin;
 exports.emailPurchasingTickets = emailPurchasingTickets;
 exports.emailApplicationPurchasingTickets = emailApplicationPurchasingTickets;
 exports.emailApplicationCompleted = emailApplicationCompleted;
@@ -90,6 +91,13 @@ async function emailApplicationPaidAdmin(ctx) {
         to: config_js_1.config.admin.email,
         subject: `[Payment received] ${ctx.referenceNumber}`,
         text: `Payment received for ${ctx.referenceNumber} (${ctx.customerName}).\nTotal: MWK ${ctx.totalMwk.toLocaleString()}\n\nPurchase tickets and upload them in the admin console.`,
+    });
+}
+async function emailManualPaymentProofSubmittedAdmin(ctx) {
+    await (0, mailer_js_1.sendMail)({
+        to: config_js_1.config.admin.email,
+        subject: `[Proof of payment] ${ctx.referenceNumber} · ${ctx.manualReference}`,
+        text: `${ctx.customerName} submitted proof of payment for ${ctx.referenceNumber}.\n\nAmount: MWK ${ctx.totalMwk.toLocaleString()}\nReference to verify: ${ctx.manualReference}\n\nReview the receipt in the Biazo admin console (Payments) and approve or reject.`,
     });
 }
 async function emailPurchasingTickets(ctx) {

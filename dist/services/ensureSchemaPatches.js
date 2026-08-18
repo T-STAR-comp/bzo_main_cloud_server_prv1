@@ -20,6 +20,7 @@ const MIGRATION_FILES = [
     "schema-migrate-v10.sql",
     "schema-migrate-v11.sql",
     "schema-migrate-v12.sql",
+    "schema-migrate-v13.sql",
 ];
 const SKIPPABLE_CODES = new Set([
     "ER_DUP_FIELDNAME",
@@ -100,7 +101,7 @@ const PATCHES = [
     },
     {
         name: "payment_ledger.travel_credit_method",
-        sql: `ALTER TABLE payment_ledger MODIFY payment_method ENUM('mobile_money','bank','card','hosted_checkout','travel_credit') NOT NULL`,
+        sql: `ALTER TABLE payment_ledger MODIFY payment_method ENUM('mobile_money','bank','card','hosted_checkout','travel_credit','manual_transfer') NOT NULL`,
     },
     {
         name: "travel_credit_transactions",

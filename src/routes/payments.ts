@@ -28,6 +28,11 @@ import {
 } from "../services/paymentLedger.js";
 import { watchPaymentLedger } from "../services/paymentPoller.js";
 import { payApplicationWithTravelCredit } from "../services/travelCredits.js";
+import { listManualPaymentSources } from "../services/manualPaymentSources.js";
+import {
+  initiateManualApplicationPayment,
+  submitManualPaymentProof,
+} from "../services/manualPayments.js";
 
 export const paymentsRouter = Router();
 
@@ -36,9 +41,12 @@ paymentsRouter.use(authenticate);
 paymentsRouter.get(
   "/config",
   asyncHandler(async (_req, res) => {
+    const manualSources = config.usePaymentGateway ? [] : await listManualPaymentSources(true);
     res.json({
       checkoutMode: config.paychangu.checkoutMode,
       mockMode: paychangu.isMockMode(),
+      usePaymentGateway: config.usePaymentGateway,
+      manualSources,
     });
   }),
 );
@@ -102,7 +110,9 @@ paymentsRouter.get(
     if (!row) throw new AppError(404, "Payment not found");
 
     if (row.status === "pending") {
-      await verifyAndProcessLedger(row);
+      if (row.payment_method !== "manual_transfer") {
+        await verifyAndProcessLedger(row);
+      }
       row = (await getLedgerById(id, req.user!.id))!;
     }
 
@@ -440,6 +450,57 @@ paymentsRouter.post(
 );
 
 paymentsRouter.post(
+  "/manual/initiate",
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const body = z
+      .object({
+        applicationId: z.string().uuid(),
+        displayCurrency: displayCurrencyField,
+      })
+      .parse(req.body);
+
+    const row = await initiateManualApplicationPayment(
+      req.user!.id,
+      body.applicationId,
+      body.displayCurrency,
+    );
+
+    res.status(201).json({
+      payment: mapLedgerPublic(row),
+      message: "Transfer the exact amount to one of the accounts shown, using the reference provided.",
+    });
+  }),
+);
+
+const proofSchema = z.object({
+  fileName: z.string().min(1).max(255),
+  mimeType: z.string().min(1).max(100),
+  fileBase64: z.string().min(1),
+});
+
+paymentsRouter.post(
+  "/manual/:id/proof",
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const ledgerId = z.string().uuid().parse(req.params.id);
+    const body = proofSchema.parse(req.body);
+    const buffer = Buffer.from(body.fileBase64, "base64");
+
+    const row = await submitManualPaymentProof(
+      req.user!.id,
+      ledgerId,
+      body.fileName,
+      body.mimeType,
+      buffer,
+    );
+
+    res.status(201).json({
+      payment: mapLedgerPublic(row),
+      message: "Proof submitted. Our team will review it shortly.",
+    });
+  }),
+);
+
+paymentsRouter.post(
   "/travel-credit",
   asyncHandler(async (req: AuthedRequest, res) => {
     const body = z
@@ -464,6 +525,13 @@ paymentsRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const body = initiateSchema.parse(req.body);
     const userId = req.user!.id;
+
+    if (!config.usePaymentGateway) {
+      throw new AppError(
+        400,
+        "Online payment is disabled. Pay by bank transfer using the instructions on your quote.",
+      );
+    }
 
     const existing = await getActiveLedgerForOrder("flight_application", body.applicationId, userId);
     if (existing) {

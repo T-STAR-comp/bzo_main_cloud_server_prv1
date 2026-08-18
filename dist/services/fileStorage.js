@@ -7,6 +7,8 @@ exports.ensureDataStore = ensureDataStore;
 exports.ticketStoragePath = ticketStoragePath;
 exports.saveTicketFile = saveTicketFile;
 exports.readStoredFile = readStoredFile;
+exports.paymentProofStoragePath = paymentProofStoragePath;
+exports.savePaymentProofFile = savePaymentProofFile;
 exports.loadTicketFileContent = loadTicketFileContent;
 const promises_1 = __importDefault(require("fs/promises"));
 const path_1 = __importDefault(require("path"));
@@ -23,6 +25,7 @@ function resolveStorePath(relativePath) {
 async function ensureDataStore() {
     const root = path_1.default.resolve(process.cwd(), config_js_1.config.dataStorePath);
     await promises_1.default.mkdir(path_1.default.join(root, "tickets"), { recursive: true });
+    await promises_1.default.mkdir(path_1.default.join(root, "payment-proofs"), { recursive: true });
     logger_js_1.logger.info(`Data store ready at ${root}`);
 }
 function ticketStoragePath(applicationId, ticketId, fileName) {
@@ -39,6 +42,18 @@ async function saveTicketFile(applicationId, ticketId, fileName, buffer) {
 }
 async function readStoredFile(relativePath) {
     return promises_1.default.readFile(resolveStorePath(relativePath));
+}
+function paymentProofStoragePath(ledgerId, fileName) {
+    const ext = path_1.default.extname(fileName) || ".bin";
+    const safeName = `${ledgerId}${ext}`;
+    return `payment-proofs/${safeName}`;
+}
+async function savePaymentProofFile(ledgerId, fileName, buffer) {
+    const relativePath = paymentProofStoragePath(ledgerId, fileName);
+    const abs = resolveStorePath(relativePath);
+    await promises_1.default.mkdir(path_1.default.dirname(abs), { recursive: true });
+    await promises_1.default.writeFile(abs, buffer);
+    return relativePath;
 }
 async function loadTicketFileContent(row) {
     const r = row;

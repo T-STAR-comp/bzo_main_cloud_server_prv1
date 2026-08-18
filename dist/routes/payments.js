@@ -14,12 +14,17 @@ const currency_js_1 = require("../services/currency.js");
 const paymentLedger_js_1 = require("../services/paymentLedger.js");
 const paymentPoller_js_1 = require("../services/paymentPoller.js");
 const travelCredits_js_1 = require("../services/travelCredits.js");
+const manualPaymentSources_js_1 = require("../services/manualPaymentSources.js");
+const manualPayments_js_1 = require("../services/manualPayments.js");
 exports.paymentsRouter = (0, express_1.Router)();
 exports.paymentsRouter.use(auth_js_1.authenticate);
 exports.paymentsRouter.get("/config", (0, errorHandler_js_1.asyncHandler)(async (_req, res) => {
+    const manualSources = config_js_1.config.usePaymentGateway ? [] : await (0, manualPaymentSources_js_1.listManualPaymentSources)(true);
     res.json({
         checkoutMode: config_js_1.config.paychangu.checkoutMode,
         mockMode: client_js_1.paychangu.isMockMode(),
+        usePaymentGateway: config_js_1.config.usePaymentGateway,
+        manualSources,
     });
 }));
 exports.paymentsRouter.get("/operators", (0, errorHandler_js_1.asyncHandler)(async (_req, res) => {
@@ -64,7 +69,9 @@ exports.paymentsRouter.get("/:id", (0, errorHandler_js_1.asyncHandler)(async (re
     if (!row)
         throw new errorHandler_js_1.AppError(404, "Payment not found");
     if (row.status === "pending") {
-        await (0, paymentLedger_js_1.verifyAndProcessLedger)(row);
+        if (row.payment_method !== "manual_transfer") {
+            await (0, paymentLedger_js_1.verifyAndProcessLedger)(row);
+        }
         row = (await (0, paymentLedger_js_1.getLedgerById)(id, req.user.id));
     }
     res.json({ payment: (0, paymentLedger_js_1.mapLedgerPublic)(row) });
@@ -343,6 +350,34 @@ exports.paymentsRouter.post("/travel-credits/purchase", (0, errorHandler_js_1.as
         message: "Card charge initiated — confirming payment…",
     });
 }));
+exports.paymentsRouter.post("/manual/initiate", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
+    const body = zod_1.z
+        .object({
+        applicationId: zod_1.z.string().uuid(),
+        displayCurrency: displayCurrencyField,
+    })
+        .parse(req.body);
+    const row = await (0, manualPayments_js_1.initiateManualApplicationPayment)(req.user.id, body.applicationId, body.displayCurrency);
+    res.status(201).json({
+        payment: (0, paymentLedger_js_1.mapLedgerPublic)(row),
+        message: "Transfer the exact amount to one of the accounts shown, using the reference provided.",
+    });
+}));
+const proofSchema = zod_1.z.object({
+    fileName: zod_1.z.string().min(1).max(255),
+    mimeType: zod_1.z.string().min(1).max(100),
+    fileBase64: zod_1.z.string().min(1),
+});
+exports.paymentsRouter.post("/manual/:id/proof", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
+    const ledgerId = zod_1.z.string().uuid().parse(req.params.id);
+    const body = proofSchema.parse(req.body);
+    const buffer = Buffer.from(body.fileBase64, "base64");
+    const row = await (0, manualPayments_js_1.submitManualPaymentProof)(req.user.id, ledgerId, body.fileName, body.mimeType, buffer);
+    res.status(201).json({
+        payment: (0, paymentLedger_js_1.mapLedgerPublic)(row),
+        message: "Proof submitted. Our team will review it shortly.",
+    });
+}));
 exports.paymentsRouter.post("/travel-credit", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
     const body = zod_1.z
         .object({
@@ -356,6 +391,9 @@ exports.paymentsRouter.post("/travel-credit", (0, errorHandler_js_1.asyncHandler
 exports.paymentsRouter.post("/initiate", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
     const body = initiateSchema.parse(req.body);
     const userId = req.user.id;
+    if (!config_js_1.config.usePaymentGateway) {
+        throw new errorHandler_js_1.AppError(400, "Online payment is disabled. Pay by bank transfer using the instructions on your quote.");
+    }
     const existing = await (0, paymentLedger_js_1.getActiveLedgerForOrder)("flight_application", body.applicationId, userId);
     if (existing) {
         const mapped = (0, paymentLedger_js_1.mapLedgerPublic)(existing);

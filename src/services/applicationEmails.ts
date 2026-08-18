@@ -131,6 +131,16 @@ export async function emailApplicationPaidAdmin(ctx: ApplicationEmailContext & {
   });
 }
 
+export async function emailManualPaymentProofSubmittedAdmin(
+  ctx: ApplicationEmailContext & { totalMwk: number; manualReference: string; ledgerId: string },
+) {
+  await sendMail({
+    to: config.admin.email,
+    subject: `[Proof of payment] ${ctx.referenceNumber} · ${ctx.manualReference}`,
+    text: `${ctx.customerName} submitted proof of payment for ${ctx.referenceNumber}.\n\nAmount: MWK ${ctx.totalMwk.toLocaleString()}\nReference to verify: ${ctx.manualReference}\n\nReview the receipt in the Biazo admin console (Payments) and approve or reject.`,
+  });
+}
+
 export async function emailPurchasingTickets(ctx: ApplicationEmailContext) {
   return emailApplicationPurchasingTickets(ctx);
 }

@@ -23,6 +23,8 @@ function stopPolling(ledgerId) {
 function watchPaymentLedger(row) {
     if (row.status !== "pending")
         return;
+    if (row.payment_method === "manual_transfer")
+        return;
     if (row.payment_method === "hosted_checkout" && !(0, paymentLedger_js_1.hostedCheckoutReadyForVerify)(row))
         return;
     if (activePolls.has(row.id))

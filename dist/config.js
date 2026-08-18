@@ -74,6 +74,8 @@ exports.config = {
         webhookSecret: process.env.PAYCHANGU_WEBHOOK_SECRET ?? "",
         checkoutMode: (process.env.PAYCHANGU_CHECKOUT_MODE ?? "direct"),
     },
+    /** When false, flight ticket payments use manual bank transfer instead of PayChangu. */
+    usePaymentGateway: process.env.USE_PAYMENT_GATEWAY !== "false",
     dataStorePath: process.env.DATA_STORE_PATH ?? "data_store_biazo",
     isProd,
 };

@@ -16,6 +16,7 @@ function resolveStorePath(relativePath: string) {
 export async function ensureDataStore() {
   const root = path.resolve(process.cwd(), config.dataStorePath);
   await fs.mkdir(path.join(root, "tickets"), { recursive: true });
+  await fs.mkdir(path.join(root, "payment-proofs"), { recursive: true });
   logger.info(`Data store ready at ${root}`);
 }
 
@@ -35,6 +36,20 @@ export async function saveTicketFile(applicationId: string, ticketId: string, fi
 
 export async function readStoredFile(relativePath: string): Promise<Buffer> {
   return fs.readFile(resolveStorePath(relativePath));
+}
+
+export function paymentProofStoragePath(ledgerId: string, fileName: string) {
+  const ext = path.extname(fileName) || ".bin";
+  const safeName = `${ledgerId}${ext}`;
+  return `payment-proofs/${safeName}`;
+}
+
+export async function savePaymentProofFile(ledgerId: string, fileName: string, buffer: Buffer) {
+  const relativePath = paymentProofStoragePath(ledgerId, fileName);
+  const abs = resolveStorePath(relativePath);
+  await fs.mkdir(path.dirname(abs), { recursive: true });
+  await fs.writeFile(abs, buffer);
+  return relativePath;
 }
 
 export async function loadTicketFileContent(row: {

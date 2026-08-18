@@ -8,7 +8,7 @@ import { emailContextFromRow, loadApplication, recordApplicationEvent } from "./
 import { paychangu, PayChanguClient } from "./paychangu/client.js";
 import type { PayChanguMethod } from "./paychangu/types.js";
 
-export type PaymentMethodKind = PayChanguMethod | "travel_credit";
+export type PaymentMethodKind = PayChanguMethod | "travel_credit" | "manual_transfer";
 
 export type PaymentLedgerRow = RowDataPacket & {
   id: string;
@@ -42,6 +42,14 @@ export type PaymentLedgerRow = RowDataPacket & {
   last_verified_at: Date | null;
   verification_attempts: number;
   failure_reason: string | null;
+  manual_reference: string | null;
+  proof_file_path: string | null;
+  proof_mime_type: string | null;
+  proof_submitted_at: Date | null;
+  proof_review_status: "none" | "submitted" | "approved" | "rejected";
+  proof_reviewed_at: Date | null;
+  proof_reviewed_by: string | null;
+  proof_rejection_reason: string | null;
   created_at: Date;
 };
 
@@ -51,6 +59,7 @@ const WINDOW_MINUTES: Record<PaymentMethodKind, number> = {
   card: 5,
   hosted_checkout: 15,
   travel_credit: 0,
+  manual_transfer: 7 * 24 * 60,
 };
 
 export function generateChargeId() {
@@ -100,6 +109,14 @@ export function mapLedgerPublic(row: PaymentLedgerRow) {
     mobileNumber: row.mobile_number,
     mobileOperatorName: row.mobile_operator_name,
     checkoutUrl,
+    manualReference: row.manual_reference,
+    proofReviewStatus: row.proof_review_status ?? "none",
+    proofSubmittedAt: row.proof_submitted_at ? new Date(row.proof_submitted_at).toISOString() : null,
+    proofRejectionReason: row.proof_rejection_reason,
+    manualPaymentSources:
+      snapshot && Array.isArray((snapshot as { manualPaymentSources?: unknown }).manualPaymentSources)
+        ? (snapshot as { manualPaymentSources: unknown[] }).manualPaymentSources
+        : null,
     expiresAt: new Date(row.expires_at).toISOString(),
     completedAt: row.completed_at ? new Date(row.completed_at).toISOString() : null,
     orderFulfilled: Boolean(row.order_fulfilled_at),
@@ -208,6 +225,7 @@ export async function createLedgerEntry(input: {
   mobileNumber?: string;
   mobileOperatorRefId?: string;
   mobileOperatorName?: string;
+  manualReference?: string;
 }) {
   const id = uuid();
   const windowMinutes = WINDOW_MINUTES[input.paymentMethod];
@@ -222,6 +240,7 @@ export async function createLedgerEntry(input: {
       amount_mwk, payment_amount, currency, display_currency, status, order_snapshot,
       paychangu_ref_id, paychangu_status, provider_response,
       bank_name, bank_account_number, bank_account_name, bank_expires_at,
+      manual_reference,
       card_requires_3ds, card_3ds_url,
       mobile_number, mobile_operator_ref_id, mobile_operator_name,
       verification_window_minutes, expires_at
@@ -230,6 +249,7 @@ export async function createLedgerEntry(input: {
       :amountMwk, :paymentAmount, :currency, :displayCurrency, 'pending', :orderSnapshot,
       :paychanguRefId, :paychanguStatus, :providerResponse,
       :bankName, :bankAccountNumber, :bankAccountName, :bankExpiresAt,
+      :manualReference,
       :cardRequires3ds, :card3dsUrl,
       :mobileNumber, :mobileOperatorRefId, :mobileOperatorName,
       :windowMinutes, :expiresAt
@@ -253,6 +273,7 @@ export async function createLedgerEntry(input: {
       bankAccountNumber: input.bankDetails?.accountNumber ?? null,
       bankAccountName: input.bankDetails?.accountName ?? null,
       bankExpiresAt: input.bankDetails?.expiresAt ?? null,
+      manualReference: input.manualReference ?? null,
       cardRequires3ds: input.card3ds?.requires3ds ? 1 : 0,
       card3dsUrl: input.card3ds?.authUrl ?? null,
       mobileNumber: input.mobileNumber ?? null,
@@ -495,7 +516,9 @@ export async function fulfillFlightApplicationInTransaction(
   const paymentLabel =
     ledger.payment_method === "travel_credit"
       ? "Travel credit"
-      : `PayChangu ${ledger.payment_method}`;
+      : ledger.payment_method === "manual_transfer"
+        ? "Manual bank transfer"
+        : `PayChangu ${ledger.payment_method}`;
 
   await conn.execute(
     `INSERT INTO finance_ledger (id, user_id, entry_type, amount_mwk, description, reference, created_by)
@@ -514,7 +537,9 @@ export async function fulfillFlightApplicationInTransaction(
     "payment_received",
     ledger.payment_method === "travel_credit"
       ? `Payment received via travel credit. Ref ${ledger.charge_id}.`
-      : `Payment received via PayChangu (${ledger.payment_method}). Charge ${ledger.charge_id}.`,
+      : ledger.payment_method === "manual_transfer"
+        ? `Payment confirmed after manual bank transfer review. Ref ${ledger.manual_reference ?? ledger.charge_id}.`
+        : `Payment received via PayChangu (${ledger.payment_method}). Charge ${ledger.charge_id}.`,
     conn,
   );
 
@@ -545,11 +570,14 @@ export async function verifyAndProcessLedger(
 ): Promise<"completed" | "pending" | "failed" | "expired"> {
   if (row.status !== "pending") return row.status;
 
-  if (row.payment_method === "travel_credit") {
+  if (row.payment_method === "travel_credit" || row.payment_method === "manual_transfer") {
     return row.status;
   }
 
   if (new Date(row.expires_at).getTime() <= Date.now()) {
+    if (row.proof_review_status === "submitted") {
+      return "pending";
+    }
     await markLedgerExpired(row);
     return "expired";
   }
@@ -563,7 +591,10 @@ export async function verifyAndProcessLedger(
   }
 
   try {
-    const result = await paychangu.verify(row.payment_method as Exclude<PaymentMethodKind, "travel_credit">, row.charge_id);
+    const result = await paychangu.verify(
+      row.payment_method as Exclude<PaymentMethodKind, "travel_credit" | "manual_transfer">,
+      row.charge_id,
+    );
     const parsed = PayChanguClient.parseStatus(result.status);
 
     if (result.status === "awaiting_checkout") {

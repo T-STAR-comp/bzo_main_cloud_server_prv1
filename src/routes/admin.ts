@@ -12,7 +12,17 @@ import { writeAuditLog, publicUser, type UserRow } from "../services/audit.js";
 import { emailApplicationCompleted } from "../services/applicationEmails.js";
 import { emailContextFromRow } from "../services/applications.js";
 import { ticketDisplayStatus } from "../services/ticketUtils.js";
-import { loadTicketFileContent } from "../services/fileStorage.js";
+import { loadTicketFileContent, readStoredFile } from "../services/fileStorage.js";
+import {
+  createManualPaymentSource,
+  deleteManualPaymentSource,
+  listManualPaymentSources,
+  updateManualPaymentSource,
+} from "../services/manualPaymentSources.js";
+import {
+  approveManualPaymentProof,
+  rejectManualPaymentProof,
+} from "../services/manualPayments.js";
 import {
   addTravelCredit,
   addTravelCreditToAllUsers,
@@ -68,6 +78,11 @@ function mapLedgerAdminDetail(row: PaymentLedgerRow & RowDataPacket) {
     lastVerifiedAt: row.last_verified_at ? new Date(row.last_verified_at).toISOString() : null,
     verificationAttempts: Number(row.verification_attempts ?? 0),
     failureReason: row.failure_reason,
+    manualReference: row.manual_reference,
+    proofReviewStatus: row.proof_review_status ?? "none",
+    proofSubmittedAt: row.proof_submitted_at ? new Date(row.proof_submitted_at).toISOString() : null,
+    proofRejectionReason: row.proof_rejection_reason,
+    hasProof: Boolean(row.proof_file_path),
   };
 }
 
@@ -435,6 +450,109 @@ adminRouter.get(
         userName: `${row.first_name} ${row.last_name}`,
       })),
     });
+  }),
+);
+
+adminRouter.get(
+  "/payments/ledger/:id/proof",
+  asyncHandler(async (req, res) => {
+    const id = z.string().uuid().parse(req.params.id);
+    const [rows] = await pool.execute<PaymentLedgerRow[]>(
+      `SELECT proof_file_path, proof_mime_type FROM payment_ledger WHERE id = :id`,
+      { id },
+    );
+    const row = rows[0];
+    if (!row?.proof_file_path) throw new AppError(404, "Proof not found");
+
+    const buffer = await readStoredFile(row.proof_file_path);
+    const mime = row.proof_mime_type ?? "application/octet-stream";
+    res.setHeader("Content-Type", mime);
+    res.setHeader("Content-Disposition", `inline; filename="payment-proof-${id}"`);
+    res.send(buffer);
+  }),
+);
+
+adminRouter.post(
+  "/payments/ledger/:id/approve-proof",
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const id = z.string().uuid().parse(req.params.id);
+    const row = await approveManualPaymentProof(id, req.user!.id);
+    res.json({ payment: mapLedgerAdminDetail(row as PaymentLedgerRow & RowDataPacket), message: "Payment approved" });
+  }),
+);
+
+adminRouter.post(
+  "/payments/ledger/:id/reject-proof",
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const id = z.string().uuid().parse(req.params.id);
+    const body = z.object({ reason: z.string().min(3).max(500) }).parse(req.body);
+    const row = await rejectManualPaymentProof(id, req.user!.id, body.reason);
+    res.json({ payment: mapLedgerAdminDetail(row as PaymentLedgerRow & RowDataPacket), message: "Proof rejected" });
+  }),
+);
+
+adminRouter.get(
+  "/payment-sources",
+  asyncHandler(async (_req, res) => {
+    const sources = await listManualPaymentSources(false);
+    res.json({ sources });
+  }),
+);
+
+const paymentSourceSchema = z.object({
+  label: z.string().min(1).max(120),
+  bankName: z.string().min(1).max(120),
+  accountName: z.string().min(1).max(200),
+  accountNumber: z.string().min(1).max(80),
+  branchCode: z.string().max(80).optional().nullable(),
+  swiftCode: z.string().max(40).optional().nullable(),
+  currency: z.string().length(3).default("MWK"),
+  instructions: z.string().max(2000).optional().nullable(),
+  sortOrder: z.number().int().min(0).max(9999).optional(),
+  isActive: z.boolean().optional(),
+});
+
+adminRouter.post(
+  "/payment-sources",
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const body = paymentSourceSchema.parse(req.body);
+    const source = await createManualPaymentSource(body);
+    await writeAuditLog({
+      userId: req.user!.id,
+      action: "payment_source.created",
+      metadata: { sourceId: source.id, label: source.label },
+    });
+    res.status(201).json({ source });
+  }),
+);
+
+adminRouter.patch(
+  "/payment-sources/:id",
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const id = z.string().uuid().parse(req.params.id);
+    const body = paymentSourceSchema.partial().parse(req.body);
+    const source = await updateManualPaymentSource(id, body);
+    if (!source) throw new AppError(404, "Payment source not found");
+    await writeAuditLog({
+      userId: req.user!.id,
+      action: "payment_source.updated",
+      metadata: { sourceId: id },
+    });
+    res.json({ source });
+  }),
+);
+
+adminRouter.delete(
+  "/payment-sources/:id",
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const id = z.string().uuid().parse(req.params.id);
+    await deleteManualPaymentSource(id);
+    await writeAuditLog({
+      userId: req.user!.id,
+      action: "payment_source.deleted",
+      metadata: { sourceId: id },
+    });
+    res.json({ message: "Payment source removed" });
   }),
 );
 
