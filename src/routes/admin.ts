@@ -1062,7 +1062,7 @@ adminRouter.post(
       row.email as string,
     );
 
-    const auditSummary = `Ticket re-sent manually by admin.\nRoute: ${row.origin_code}→${row.destination_code}\nPassengers: ${row.passenger_names ?? "—"}`;
+    const auditSummary = `Ticket re-sent manually by admin.\nRoute: ${row.origin_code}→${row.destination_code}\nPassengers: ${row.passenger_names ?? "-"}`;
 
     await emailApplicationCompleted({
       ctx,

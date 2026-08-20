@@ -214,6 +214,6 @@ export async function ensureSchemaPatches() {
      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'flight_applications' AND COLUMN_NAME = 'booking_id'`,
   );
   if (!cols[0]) {
-    logger.warn("flight_applications.booking_id still missing — run npm run db:setup");
+    logger.warn("flight_applications.booking_id still missing - run npm run db:setup");
   }
 }

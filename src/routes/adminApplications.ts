@@ -74,12 +74,12 @@ adminApplicationsRouter.get(
         `UPDATE flight_applications SET status = 'in_review', opened_by_admin_at = UTC_TIMESTAMP() WHERE id = :id`,
         { id },
       );
-      await recordApplicationEvent(id, "in_review", "Admin opened application — now in review.");
+      await recordApplicationEvent(id, "in_review", "Admin opened application - now in review.");
       await emailApplicationInReview(ctx);
       loaded = (await loadApplication(id))!;
     } else if (loaded.application.status === "paid") {
       await pool.execute(`UPDATE flight_applications SET status = 'purchasing' WHERE id = :id`, { id });
-      await recordApplicationEvent(id, "purchasing", "Admin opened paid application — purchasing tickets.");
+      await recordApplicationEvent(id, "purchasing", "Admin opened paid application - purchasing tickets.");
       await emailPurchasingTickets(ctx);
       loaded = (await loadApplication(id))!;
     }
@@ -249,6 +249,7 @@ adminApplicationsRouter.post(
 
     await emailApplicationQuoted({
       ctx,
+      applicationId: id,
       priceMwk: body.quotedPriceMwk,
       extraChargesMwk: totals.extrasMwk,
       extraNote: body.extraChargesNote ?? null,
@@ -453,7 +454,7 @@ adminApplicationsRouter.post(
 
       const auditSummary = `Application ${loaded.application.referenceNumber} completed.\nRoute: ${loaded.application.originCode}→${loaded.application.destinationCode}\nTickets uploaded: ${required}\nPassengers: ${loaded.application.passengers.length}\nTotal paid: MWK ${loaded.application.totalPriceMwk.toLocaleString()}`;
 
-      await recordApplicationEvent(id, "completed", `All ${required} ticket(s) uploaded — application completed.`);
+      await recordApplicationEvent(id, "completed", `All ${required} ticket(s) uploaded - application completed.`);
 
       const [allTicketFiles] = await pool.execute<RowDataPacket[]>(
         `SELECT file_name, mime_type, file_path, file_data FROM flight_application_tickets WHERE application_id = :id ORDER BY segment_order ASC`,
@@ -486,7 +487,7 @@ adminApplicationsRouter.post(
         uploaded: newUploadedCount,
         required,
         completed: true,
-        message: `All ${required} ticket(s) uploaded — customer notified`,
+        message: `All ${required} ticket(s) uploaded - customer notified`,
       });
       return;
     }
@@ -496,7 +497,7 @@ adminApplicationsRouter.post(
       uploaded: newUploadedCount,
       required,
       completed: false,
-      message: `Ticket ${newUploadedCount} of ${required} saved — upload remaining ticket(s) to complete the order`,
+      message: `Ticket ${newUploadedCount} of ${required} saved - upload remaining ticket(s) to complete the order`,
     });
   }),
 );

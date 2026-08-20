@@ -40,9 +40,9 @@ async function runHourlyReconciliation() {
                 logger_js_1.logger.error(`Reconciliation fulfillment failed for ledger ${row.id}`, error);
             }
         }
-        logger_js_1.logger.info(`Hourly reconciliation done — checked ${pending.length} pending, ${completedRecent.length} recent completed`);
+        logger_js_1.logger.info(`Hourly reconciliation done - checked ${pending.length} pending, ${completedRecent.length} recent completed`);
     }
     catch (error) {
-        logger_js_1.logger.warn("Hourly payment reconciliation skipped — database unavailable", error);
+        logger_js_1.logger.warn("Hourly payment reconciliation skipped - database unavailable", error);
     }
 }

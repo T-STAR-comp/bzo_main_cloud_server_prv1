@@ -222,7 +222,7 @@ export async function buildFinancialReport(from: Date, to: Date, label: string):
 function renderReportText(data: FinancialReportData) {
   const { financeLedger: f, paymentLedger: p, travelCredits: tc } = data;
   const lines = [
-    `Biazo Financial Report — ${data.period.label}`,
+    `Biazo Financial Report - ${data.period.label}`,
     `Period: ${data.period.from.toISOString().slice(0, 10)} to ${data.period.to.toISOString().slice(0, 10)}`,
     "",
     "=== SUMMARY ===",

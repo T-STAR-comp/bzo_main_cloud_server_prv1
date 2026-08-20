@@ -21,7 +21,7 @@ async function sendMail(options) {
     logger_js_1.logger.info(`[email] ${options.subject} → ${Array.isArray(options.to) ? options.to.join(", ") : options.to}`);
     logger_js_1.logger.info(`[email-body]\n${options.text}`);
     if (!transporter) {
-        logger_js_1.logger.warn("SMTP not configured — email logged above only");
+        logger_js_1.logger.warn("SMTP not configured - email logged above only");
         return;
     }
     try {

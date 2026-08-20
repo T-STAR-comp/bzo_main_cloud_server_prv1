@@ -19,6 +19,7 @@ const flights_js_1 = require("./routes/flights.js");
 const applications_js_1 = require("./routes/applications.js");
 const adminApplications_js_1 = require("./routes/adminApplications.js");
 const payments_js_1 = require("./routes/payments.js");
+const public_js_1 = require("./routes/public.js");
 const ensureAdmin_js_1 = require("./services/ensureAdmin.js");
 const ensureSchemaPatches_js_1 = require("./services/ensureSchemaPatches.js");
 const fileStorage_js_1 = require("./services/fileStorage.js");
@@ -52,6 +53,7 @@ app.use("/api/flights", flights_js_1.flightsRouter);
 app.use("/api/applications", applications_js_1.applicationsRouter);
 app.use("/api/payments", payments_js_1.paymentsRouter);
 app.use("/api/admin/applications", adminApplications_js_1.adminApplicationsRouter);
+app.use("/api/public", public_js_1.publicRouter);
 app.use(errorHandler_js_1.notFound);
 app.use(errorHandler_js_1.errorHandler);
 async function start() {

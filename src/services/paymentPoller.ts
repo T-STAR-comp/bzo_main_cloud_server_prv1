@@ -68,6 +68,6 @@ async function resumeActivePolls() {
       }
     }
   } catch (error) {
-    logger.warn("Payment poller could not reach database — will retry", error);
+    logger.warn("Payment poller could not reach database - will retry", error);
   }
 }

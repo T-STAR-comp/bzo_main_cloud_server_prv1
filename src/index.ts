@@ -14,6 +14,7 @@ import { flightsRouter } from "./routes/flights.js";
 import { applicationsRouter } from "./routes/applications.js";
 import { adminApplicationsRouter } from "./routes/adminApplications.js";
 import { paymentsRouter } from "./routes/payments.js";
+import { publicRouter } from "./routes/public.js";
 import { ensureDefaultAdmin } from "./services/ensureAdmin.js";
 import { ensureSchemaPatches } from "./services/ensureSchemaPatches.js";
 import { ensureDataStore } from "./services/fileStorage.js";
@@ -55,6 +56,7 @@ app.use("/api/flights", flightsRouter);
 app.use("/api/applications", applicationsRouter);
 app.use("/api/payments", paymentsRouter);
 app.use("/api/admin/applications", adminApplicationsRouter);
+app.use("/api/public", publicRouter);
 
 app.use(notFound);
 app.use(errorHandler);

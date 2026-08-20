@@ -94,5 +94,5 @@ export async function updatePlatformSettings(
 export async function getEmailFooterLine() {
   const settings = await getPlatformSettings();
   const wa = settings.whatsappNumber.replace(/\D/g, "");
-  return `\n\n— Biazo Travel Agency, Lilongwe, Malawi\nConcierge: ${settings.conciergePhone} · WhatsApp: https://wa.me/${wa}`;
+  return `\n\n- Biazo Travel Agency, Lilongwe, Malawi\nConcierge: ${settings.conciergePhone} · WhatsApp: https://wa.me/${wa}`;
 }

@@ -40,7 +40,7 @@ export class PayChanguClient {
     this.secretKey = config.paychangu.secretKey;
     this.mockMode = !this.secretKey;
     if (this.mockMode) {
-      logger.warn("PayChangu mock mode — set PAYCHANGU_SECRET_KEY for live payments");
+      logger.warn("PayChangu mock mode - set PAYCHANGU_SECRET_KEY for live payments");
     }
   }
 

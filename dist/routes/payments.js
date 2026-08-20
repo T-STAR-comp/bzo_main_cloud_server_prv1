@@ -197,7 +197,7 @@ exports.paymentsRouter.post("/travel-credits/purchase", (0, errorHandler_js_1.as
         throw new errorHandler_js_1.AppError(400, "Hosted checkout is not enabled");
     }
     if (body.method !== "hosted_checkout" && checkoutMode === "hosted") {
-        throw new errorHandler_js_1.AppError(400, "Direct charge is not enabled — use hosted checkout");
+        throw new errorHandler_js_1.AppError(400, "Direct charge is not enabled - use hosted checkout");
     }
     const [users] = await pool_js_1.pool.execute(`SELECT first_name, last_name, email FROM users WHERE id = :id`, { id: userId });
     const user = users[0];
@@ -275,7 +275,7 @@ exports.paymentsRouter.post("/travel-credits/purchase", (0, errorHandler_js_1.as
         (0, paymentPoller_js_1.watchPaymentLedger)(row);
         res.status(201).json({
             payment: (0, paymentLedger_js_1.mapLedgerPublic)(row),
-            message: "PIN prompt sent — approve the payment on your phone.",
+            message: "PIN prompt sent - approve the payment on your phone.",
         });
         return;
     }
@@ -347,7 +347,7 @@ exports.paymentsRouter.post("/travel-credits/purchase", (0, errorHandler_js_1.as
     }
     res.status(201).json({
         payment: (0, paymentLedger_js_1.mapLedgerPublic)(row),
-        message: "Card charge initiated — confirming payment…",
+        message: "Card charge initiated - confirming payment…",
     });
 }));
 exports.paymentsRouter.post("/manual/initiate", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
@@ -423,7 +423,7 @@ exports.paymentsRouter.post("/initiate", (0, errorHandler_js_1.asyncHandler)(asy
         throw new errorHandler_js_1.AppError(400, "Hosted checkout is not enabled");
     }
     if (body.method !== "hosted_checkout" && checkoutMode === "hosted") {
-        throw new errorHandler_js_1.AppError(400, "Direct charge is not enabled — use hosted checkout");
+        throw new errorHandler_js_1.AppError(400, "Direct charge is not enabled - use hosted checkout");
     }
     const [users] = await pool_js_1.pool.execute(`SELECT first_name, last_name, email FROM users WHERE id = :id`, { id: userId });
     const user = users[0];
@@ -503,7 +503,7 @@ exports.paymentsRouter.post("/initiate", (0, errorHandler_js_1.asyncHandler)(asy
         (0, paymentPoller_js_1.watchPaymentLedger)(row);
         res.status(201).json({
             payment: (0, paymentLedger_js_1.mapLedgerPublic)(row),
-            message: "PIN prompt sent — approve the payment on your phone.",
+            message: "PIN prompt sent - approve the payment on your phone.",
         });
         return;
     }
@@ -576,7 +576,7 @@ exports.paymentsRouter.post("/initiate", (0, errorHandler_js_1.asyncHandler)(asy
     }
     res.status(201).json({
         payment: (0, paymentLedger_js_1.mapLedgerPublic)(row),
-        message: "Card charge initiated — confirming payment…",
+        message: "Card charge initiated - confirming payment…",
     });
 }));
 exports.paymentsRouter.post("/:id/verify", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {

@@ -167,7 +167,7 @@ export function renderFinancialReportPdf(data: FinancialReportData): Promise<Buf
     doc.on("error", reject);
 
     const { financeLedger: f, paymentLedger: p, travelCredits: tc, period } = data;
-    const periodLabel = `${formatDate(period.from.toISOString())} — ${formatDate(period.to.toISOString())}`;
+    const periodLabel = `${formatDate(period.from.toISOString())} - ${formatDate(period.to.toISOString())}`;
     const reportTitle = `${period.label} Financial Report`;
 
     drawPageHeader(doc, reportTitle, periodLabel);
@@ -248,7 +248,7 @@ export function renderFinancialReportPdf(data: FinancialReportData): Promise<Buf
         e.entryType,
         formatMwk(e.amountMwk),
         truncate(e.description, 28),
-        truncate(e.userEmail ?? e.userName ?? "—", 32),
+        truncate(e.userEmail ?? e.userName ?? "-", 32),
       ]),
       reportTitle,
       periodLabel,
@@ -348,7 +348,7 @@ export function renderFinancialReportPdf(data: FinancialReportData): Promise<Buf
 
 function renderReportEmailHtml(data: FinancialReportData) {
   const { financeLedger: f, paymentLedger: p, travelCredits: tc, period } = data;
-  const periodLabel = `${formatDate(period.from.toISOString())} — ${formatDate(period.to.toISOString())}`;
+  const periodLabel = `${formatDate(period.from.toISOString())} - ${formatDate(period.to.toISOString())}`;
 
   return `<!DOCTYPE html>
 <html>

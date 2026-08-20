@@ -38,7 +38,7 @@ class PayChanguClient {
         this.secretKey = config_js_1.config.paychangu.secretKey;
         this.mockMode = !this.secretKey;
         if (this.mockMode) {
-            logger_js_1.logger.warn("PayChangu mock mode — set PAYCHANGU_SECRET_KEY for live payments");
+            logger_js_1.logger.warn("PayChangu mock mode - set PAYCHANGU_SECRET_KEY for live payments");
         }
     }
     isMockMode() {

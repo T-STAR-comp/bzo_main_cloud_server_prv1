@@ -48,9 +48,9 @@ export async function runHourlyReconciliation() {
     }
 
     logger.info(
-      `Hourly reconciliation done — checked ${pending.length} pending, ${completedRecent.length} recent completed`,
+      `Hourly reconciliation done - checked ${pending.length} pending, ${completedRecent.length} recent completed`,
     );
   } catch (error) {
-    logger.warn("Hourly payment reconciliation skipped — database unavailable", error);
+    logger.warn("Hourly payment reconciliation skipped - database unavailable", error);
   }
 }

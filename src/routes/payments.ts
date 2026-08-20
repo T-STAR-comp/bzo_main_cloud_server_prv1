@@ -273,7 +273,7 @@ paymentsRouter.post(
       throw new AppError(400, "Hosted checkout is not enabled");
     }
     if (body.method !== "hosted_checkout" && checkoutMode === "hosted") {
-      throw new AppError(400, "Direct charge is not enabled — use hosted checkout");
+      throw new AppError(400, "Direct charge is not enabled - use hosted checkout");
     }
 
     const [users] = await pool.execute<RowDataPacket[]>(
@@ -363,7 +363,7 @@ paymentsRouter.post(
       watchPaymentLedger(row);
       res.status(201).json({
         payment: mapLedgerPublic(row),
-        message: "PIN prompt sent — approve the payment on your phone.",
+        message: "PIN prompt sent - approve the payment on your phone.",
       });
       return;
     }
@@ -444,7 +444,7 @@ paymentsRouter.post(
 
     res.status(201).json({
       payment: mapLedgerPublic(row),
-      message: "Card charge initiated — confirming payment…",
+      message: "Card charge initiated - confirming payment…",
     });
   }),
 );
@@ -569,7 +569,7 @@ paymentsRouter.post(
       throw new AppError(400, "Hosted checkout is not enabled");
     }
     if (body.method !== "hosted_checkout" && checkoutMode === "hosted") {
-      throw new AppError(400, "Direct charge is not enabled — use hosted checkout");
+      throw new AppError(400, "Direct charge is not enabled - use hosted checkout");
     }
 
     const [users] = await pool.execute<RowDataPacket[]>(
@@ -661,7 +661,7 @@ paymentsRouter.post(
       watchPaymentLedger(row);
       res.status(201).json({
         payment: mapLedgerPublic(row),
-        message: "PIN prompt sent — approve the payment on your phone.",
+        message: "PIN prompt sent - approve the payment on your phone.",
       });
       return;
     }
@@ -744,7 +744,7 @@ paymentsRouter.post(
 
     res.status(201).json({
       payment: mapLedgerPublic(row),
-      message: "Card charge initiated — confirming payment…",
+      message: "Card charge initiated - confirming payment…",
     });
   }),
 );

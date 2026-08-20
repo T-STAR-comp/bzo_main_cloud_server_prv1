@@ -42,31 +42,31 @@ const AIRPORT_DESTINATION = {
 };
 const SEED_FACTS = {
     south_africa: [
-        "South Africa has three capital cities — Pretoria, Cape Town, and Bloemfontein.",
+        "South Africa has three capital cities - Pretoria, Cape Town, and Bloemfontein.",
         "Table Mountain in Cape Town is one of the oldest mountains on Earth.",
         "South Africa is the only country to have hosted the Football, Cricket, and Rugby World Cups.",
         "The Cape Floral Kingdom contains over 9,000 plant species despite being the smallest floral kingdom.",
         "Johannesburg's OR Tambo is one of Africa's busiest airports.",
-        "South Africa has 11 official languages — a reflection of its cultural diversity.",
+        "South Africa has 11 official languages - a reflection of its cultural diversity.",
     ],
     kenya: [
         "Kenya's Great Rift Valley is visible from space.",
         "Nairobi National Park is the only national park within a capital city's boundaries.",
-        "The Maasai Mara hosts the Great Migration — millions of wildebeest crossing the plains.",
+        "The Maasai Mara hosts the Great Migration - millions of wildebeest crossing the plains.",
         "Kenya exports some of the world's most prized arabica coffee beans.",
         "Lake Victoria, partly in Kenya, is Africa's largest lake by area.",
     ],
     uae: [
         "Dubai's Burj Khalifa is the tallest building in the world at over 828 metres.",
         "Abu Dhabi's Sheikh Zayed Grand Mosque can hold over 40,000 worshippers.",
-        "Less than 50 years ago, Dubai was largely desert — today's skyline rose remarkably fast.",
+        "Less than 50 years ago, Dubai was largely desert - today's skyline rose remarkably fast.",
         "Arabic coffee with dates is a traditional welcome in Emirati culture.",
     ],
     united_kingdom: [
         "London's Underground, opened in 1863, is the world's oldest underground railway.",
         "The UK is made up of England, Scotland, Wales, and Northern Ireland.",
-        "Tea culture runs deep — Britons drink an estimated 100 million cups daily.",
-        "Scotland's Highlands are home to Loch Ness — famous worldwide.",
+        "Tea culture runs deep - Britons drink an estimated 100 million cups daily.",
+        "Scotland's Highlands are home to Loch Ness - famous worldwide.",
     ],
     united_states: [
         "The Statue of Liberty was a gift from France and welcomed millions of immigrants.",
@@ -79,7 +79,7 @@ const SEED_FACTS = {
         "Zanzibar's Stone Town is a UNESCO World Heritage Site.",
     ],
     zambia: [
-        "Victoria Falls — Mosi-oa-Tunya ('The Smoke That Thunders') — sits on the Zambia–Zimbabwe border.",
+        "Victoria Falls - Mosi-oa-Tunya ('The Smoke That Thunders') - sits on the Zambia–Zimbabwe border.",
         "South Luangwa National Park pioneered walking safaris.",
     ],
     malawi: [
@@ -88,14 +88,14 @@ const SEED_FACTS = {
         "Malawi's tea-growing hills in Thyolo produce tea enjoyed across the region.",
     ],
     ethiopia: [
-        "Ethiopia follows its own calendar — roughly seven years behind the Gregorian calendar.",
+        "Ethiopia follows its own calendar - roughly seven years behind the Gregorian calendar.",
         "It is considered the birthplace of coffee.",
-        "Ethiopia was never colonised — it maintained independence through the Scramble for Africa.",
+        "Ethiopia was never colonised - it maintained independence through the Scramble for Africa.",
     ],
     default: [
-        "Travel opens the mind — every destination has stories waiting for you.",
+        "Travel opens the mind - every destination has stories waiting for you.",
         "Learning one local greeting before you land always earns a smile.",
-        "Stay hydrated on long flights — cabin air is drier than most deserts.",
+        "Stay hydrated on long flights - cabin air is drier than most deserts.",
         "A light scarf is one of the most versatile items you can pack.",
     ],
 };

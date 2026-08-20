@@ -135,7 +135,7 @@ function renderFinancialReportPdf(data) {
         doc.on("end", () => resolve(Buffer.concat(chunks)));
         doc.on("error", reject);
         const { financeLedger: f, paymentLedger: p, travelCredits: tc, period } = data;
-        const periodLabel = `${formatDate(period.from.toISOString())} — ${formatDate(period.to.toISOString())}`;
+        const periodLabel = `${formatDate(period.from.toISOString())} - ${formatDate(period.to.toISOString())}`;
         const reportTitle = `${period.label} Financial Report`;
         drawPageHeader(doc, reportTitle, periodLabel);
         let y = 108;
@@ -204,7 +204,7 @@ function renderFinancialReportPdf(data) {
             e.entryType,
             formatMwk(e.amountMwk),
             truncate(e.description, 28),
-            truncate(e.userEmail ?? e.userName ?? "—", 32),
+            truncate(e.userEmail ?? e.userName ?? "-", 32),
         ]), reportTitle, periodLabel);
         // Payment ledger
         y = ensureSpace(doc, y, 80, reportTitle, periodLabel);
@@ -272,7 +272,7 @@ function renderFinancialReportPdf(data) {
 }
 function renderReportEmailHtml(data) {
     const { financeLedger: f, paymentLedger: p, travelCredits: tc, period } = data;
-    const periodLabel = `${formatDate(period.from.toISOString())} — ${formatDate(period.to.toISOString())}`;
+    const periodLabel = `${formatDate(period.from.toISOString())} - ${formatDate(period.to.toISOString())}`;
     return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>

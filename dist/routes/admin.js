@@ -789,7 +789,7 @@ exports.adminRouter.post("/tickets/:id/resend", (0, errorHandler_js_1.asyncHandl
         destination_code: row.destination_code,
         depart_date: row.quoted_depart_date ?? row.depart_date,
     }, `${row.first_name} ${row.last_name}`, row.email);
-    const auditSummary = `Ticket re-sent manually by admin.\nRoute: ${row.origin_code}→${row.destination_code}\nPassengers: ${row.passenger_names ?? "—"}`;
+    const auditSummary = `Ticket re-sent manually by admin.\nRoute: ${row.origin_code}→${row.destination_code}\nPassengers: ${row.passenger_names ?? "-"}`;
     await (0, applicationEmails_js_1.emailApplicationCompleted)({
         ctx,
         auditSummary,

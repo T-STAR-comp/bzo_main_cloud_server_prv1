@@ -208,6 +208,6 @@ async function ensureSchemaPatches() {
     const [cols] = await pool_js_1.pool.execute(`SELECT COLUMN_NAME FROM information_schema.COLUMNS
      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'flight_applications' AND COLUMN_NAME = 'booking_id'`);
     if (!cols[0]) {
-        logger_js_1.logger.warn("flight_applications.booking_id still missing — run npm run db:setup");
+        logger_js_1.logger.warn("flight_applications.booking_id still missing - run npm run db:setup");
     }
 }

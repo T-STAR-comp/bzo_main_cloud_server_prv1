@@ -40,13 +40,13 @@ exports.adminApplicationsRouter.get("/:id", (0, errorHandler_js_1.asyncHandler)(
     const ctx = (0, applications_js_1.emailContextFromRow)(loaded.raw, `${user.first_name} ${user.last_name}`, user.email);
     if (loaded.application.status === "pending") {
         await pool_js_1.pool.execute(`UPDATE flight_applications SET status = 'in_review', opened_by_admin_at = UTC_TIMESTAMP() WHERE id = :id`, { id });
-        await (0, applications_js_1.recordApplicationEvent)(id, "in_review", "Admin opened application — now in review.");
+        await (0, applications_js_1.recordApplicationEvent)(id, "in_review", "Admin opened application - now in review.");
         await (0, applicationEmails_js_1.emailApplicationInReview)(ctx);
         loaded = (await (0, applications_js_1.loadApplication)(id));
     }
     else if (loaded.application.status === "paid") {
         await pool_js_1.pool.execute(`UPDATE flight_applications SET status = 'purchasing' WHERE id = :id`, { id });
-        await (0, applications_js_1.recordApplicationEvent)(id, "purchasing", "Admin opened paid application — purchasing tickets.");
+        await (0, applications_js_1.recordApplicationEvent)(id, "purchasing", "Admin opened paid application - purchasing tickets.");
         await (0, applicationEmails_js_1.emailPurchasingTickets)(ctx);
         loaded = (await (0, applications_js_1.loadApplication)(id));
     }
@@ -179,6 +179,7 @@ exports.adminApplicationsRouter.post("/:id/quote", (0, errorHandler_js_1.asyncHa
     const ctx = (0, applications_js_1.emailContextFromRow)(updated[0], `${user.first_name} ${user.last_name}`, user.email);
     await (0, applicationEmails_js_1.emailApplicationQuoted)({
         ctx,
+        applicationId: id,
         priceMwk: body.quotedPriceMwk,
         extraChargesMwk: totals.extrasMwk,
         extraNote: body.extraChargesNote ?? null,
@@ -338,7 +339,7 @@ exports.adminApplicationsRouter.post("/:id/tickets", (0, errorHandler_js_1.async
     if (allUploaded) {
         await pool_js_1.pool.execute(`UPDATE flight_applications SET status = 'completed', completed_at = UTC_TIMESTAMP() WHERE id = :id`, { id });
         const auditSummary = `Application ${loaded.application.referenceNumber} completed.\nRoute: ${loaded.application.originCode}→${loaded.application.destinationCode}\nTickets uploaded: ${required}\nPassengers: ${loaded.application.passengers.length}\nTotal paid: MWK ${loaded.application.totalPriceMwk.toLocaleString()}`;
-        await (0, applications_js_1.recordApplicationEvent)(id, "completed", `All ${required} ticket(s) uploaded — application completed.`);
+        await (0, applications_js_1.recordApplicationEvent)(id, "completed", `All ${required} ticket(s) uploaded - application completed.`);
         const [allTicketFiles] = await pool_js_1.pool.execute(`SELECT file_name, mime_type, file_path, file_data FROM flight_application_tickets WHERE application_id = :id ORDER BY segment_order ASC`, { id });
         const [users] = await pool_js_1.pool.execute(`SELECT first_name, last_name, email FROM users WHERE id = :uid`, { uid: loaded.raw.user_id });
         const user = users[0];
@@ -358,7 +359,7 @@ exports.adminApplicationsRouter.post("/:id/tickets", (0, errorHandler_js_1.async
             uploaded: newUploadedCount,
             required,
             completed: true,
-            message: `All ${required} ticket(s) uploaded — customer notified`,
+            message: `All ${required} ticket(s) uploaded - customer notified`,
         });
         return;
     }
@@ -367,7 +368,7 @@ exports.adminApplicationsRouter.post("/:id/tickets", (0, errorHandler_js_1.async
         uploaded: newUploadedCount,
         required,
         completed: false,
-        message: `Ticket ${newUploadedCount} of ${required} saved — upload remaining ticket(s) to complete the order`,
+        message: `Ticket ${newUploadedCount} of ${required} saved - upload remaining ticket(s) to complete the order`,
     });
 }));
 exports.adminApplicationsRouter.get("/:id/tickets/:ticketId", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {

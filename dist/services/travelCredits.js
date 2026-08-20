@@ -205,7 +205,7 @@ async function shareTravelCredit(input) {
         });
         const senderName = `${sender.first_name} ${sender.last_name}`;
         const recipientName = `${recipient.first_name} ${recipient.last_name}`;
-        const noteSuffix = input.note?.trim() ? ` — ${input.note.trim()}` : "";
+        const noteSuffix = input.note?.trim() ? ` - ${input.note.trim()}` : "";
         const debitId = (0, uuid_1.v4)();
         const creditId = (0, uuid_1.v4)();
         await conn.execute(`INSERT INTO travel_credit_transactions

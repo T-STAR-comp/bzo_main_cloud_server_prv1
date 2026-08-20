@@ -23,7 +23,7 @@ export async function sendMail(options: {
   logger.info(`[email-body]\n${options.text}`);
 
   if (!transporter) {
-    logger.warn("SMTP not configured — email logged above only");
+    logger.warn("SMTP not configured - email logged above only");
     return;
   }
 

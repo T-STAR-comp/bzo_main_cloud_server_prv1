@@ -294,7 +294,7 @@ export async function shareTravelCredit(input: {
 
     const senderName = `${sender.first_name} ${sender.last_name}`;
     const recipientName = `${recipient.first_name} ${recipient.last_name}`;
-    const noteSuffix = input.note?.trim() ? ` — ${input.note.trim()}` : "";
+    const noteSuffix = input.note?.trim() ? ` - ${input.note.trim()}` : "";
 
     const debitId = uuid();
     const creditId = uuid();
