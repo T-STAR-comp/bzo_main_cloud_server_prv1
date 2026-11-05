@@ -1,7 +1,7 @@
 import jwt, { type SignOptions } from "jsonwebtoken";
 import { config } from "../config.js";
 
-export type UserRole = "user" | "admin";
+export type UserRole = "user" | "admin" | "agent";
 
 export type AccessPayload = {
   sub: string;

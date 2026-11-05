@@ -507,6 +507,39 @@ export async function fulfillFlightApplicationInTransaction(
     },
   );
 
+  if (app.agent_id && app.agent_code) {
+    const [agents] = await conn.execute<RowDataPacket[]>(
+      `SELECT commission_percentage FROM commission_agents WHERE id = :agentId`,
+      { agentId: app.agent_id },
+    );
+    const percentage = Number(agents[0]?.commission_percentage ?? 0);
+    const commissionMwk = Math.round((Number(ledger.amount_mwk) * percentage / 100 + Number.EPSILON) * 100) / 100;
+
+    await conn.execute(
+      `UPDATE flight_applications SET agent_commission_mwk = :commissionMwk WHERE id = :applicationId`,
+      { commissionMwk, applicationId },
+    );
+    await conn.execute(
+      `INSERT INTO commission_agent_records (
+        id, agent_id, user_id, application_id, sale_amount_mwk, commission_amount_mwk,
+        sale_date, source, source_reference, note
+      ) VALUES (
+        :id, :agentId, :userId, :applicationId, :saleAmountMwk, :commissionMwk,
+        UTC_TIMESTAMP(), 'checkout', :sourceReference, :note
+      ) ON DUPLICATE KEY UPDATE application_id = VALUES(application_id)`,
+      {
+        id: uuid(),
+        agentId: app.agent_id,
+        userId: ledger.user_id,
+        applicationId,
+        saleAmountMwk: ledger.amount_mwk,
+        commissionMwk,
+        sourceReference: ledger.charge_id,
+        note: `Flight application ${app.reference_number ?? applicationId}`,
+      },
+    );
+  }
+
   const financeId = uuid();
   const snapshot =
     typeof ledger.order_snapshot === "string"

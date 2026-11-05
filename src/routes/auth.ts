@@ -11,6 +11,7 @@ import {
   generateNumericCode,
   signAccessToken,
   signRefreshToken,
+  type UserRole,
   verifyRefreshToken,
 } from "../utils/jwt.js";
 
@@ -110,7 +111,7 @@ async function verifyEmailCode(userId: string, code: string, purpose: "signup" |
 async function issueSession(
   userId: string,
   email: string,
-  role: "user" | "admin",
+  role: UserRole,
   req: { ip?: string; headers: Record<string, unknown> },
 ) {
   const sessionId = uuid();

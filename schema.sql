@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS users (
   phone         VARCHAR(32)  NULL,
   date_of_birth DATE         NULL,
   nationality   VARCHAR(100) NULL DEFAULT 'Malawian',
-  role          ENUM('user','admin') NOT NULL DEFAULT 'user',
+  role          ENUM('user','admin','agent') NOT NULL DEFAULT 'user',
   status        ENUM('active','suspended','pending','flagged') NOT NULL DEFAULT 'active',
   admin_notes   TEXT         NULL,
   last_login_at DATETIME     NULL,

@@ -37,7 +37,7 @@ export type UserRow = RowDataPacket & {
   phone: string | null;
   date_of_birth: Date | null;
   nationality: string | null;
-  role: "user" | "admin";
+  role: "user" | "admin" | "agent";
   status: "active" | "suspended" | "pending" | "flagged";
   admin_notes: string | null;
   last_login_at: Date | null;
@@ -57,6 +57,7 @@ export function publicUser(row: UserRow, extended = false) {
     dateOfBirth: row.date_of_birth ? row.date_of_birth.toISOString().slice(0, 10) : null,
     nationality: row.nationality,
     avatarUrl: row.avatar_url,
+    role: row.role ?? "user",
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };

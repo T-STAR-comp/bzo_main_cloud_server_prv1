@@ -30,6 +30,7 @@ function publicUser(row, extended = false) {
         dateOfBirth: row.date_of_birth ? row.date_of_birth.toISOString().slice(0, 10) : null,
         nationality: row.nationality,
         avatarUrl: row.avatar_url,
+        role: row.role ?? "user",
         createdAt: row.created_at.toISOString(),
         updatedAt: row.updated_at.toISOString(),
     };

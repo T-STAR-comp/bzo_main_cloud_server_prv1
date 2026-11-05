@@ -47,6 +47,7 @@ const createSchema = zod_1.z.object({
     mealsReason: zod_1.z.string().max(500).optional(),
     specialSeat: zod_1.z.boolean().default(false),
     seatPreference: zod_1.z.string().max(120).optional(),
+    agentCode: zod_1.z.string().max(32).optional(),
     passengers: zod_1.z.array(passengerSchema).min(1).max(12),
 });
 exports.applicationsRouter.post("/", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
@@ -54,8 +55,15 @@ exports.applicationsRouter.post("/", (0, errorHandler_js_1.asyncHandler)(async (
     const userId = req.user.id;
     const id = (0, uuid_1.v4)();
     const referenceNumber = (0, applications_js_1.generateReferenceNumber)();
+    const referralCode = body.agentCode?.trim().toUpperCase();
+    let referredAgent;
+    if (referralCode) {
+        const [agentRows] = await pool_js_1.pool.execute(`SELECT id, agent_code, user_id FROM commission_agents WHERE agent_code = :agentCode AND status = 'active'`, { agentCode: referralCode });
+        if (agentRows[0]?.user_id !== userId)
+            referredAgent = agentRows[0];
+    }
     await pool_js_1.pool.execute(`INSERT INTO flight_applications (
-        id, user_id, reference_number, status,
+        id, user_id, agent_id, agent_code, reference_number, status,
         origin_code, origin_city, destination_code, destination_city,
         trip_type, depart_date, depart_time_preferred, return_date, return_time_preferred,
         contact_phone, contact_whatsapp, cabin_class,
@@ -63,7 +71,7 @@ exports.applicationsRouter.post("/", (0, errorHandler_js_1.asyncHandler)(async (
         special_wheelchair, wheelchair_reason, special_meals, meals_reason,
         special_seat, seat_preference
       ) VALUES (
-        :id, :userId, :referenceNumber, 'pending',
+        :id, :userId, :agentId, :agentCode, :referenceNumber, 'pending',
         :originCode, :originCity, :destinationCode, :destinationCity,
         :tripType, :departDate, :departTimePreferred, :returnDate, :returnTimePreferred,
         :contactPhone, :contactWhatsapp, :cabinClass,
@@ -73,6 +81,8 @@ exports.applicationsRouter.post("/", (0, errorHandler_js_1.asyncHandler)(async (
       )`, {
         id,
         userId,
+        agentId: referredAgent?.id ?? null,
+        agentCode: referredAgent?.agent_code ?? null,
         referenceNumber,
         originCode: body.originCode.toUpperCase(),
         originCity: body.originCity,

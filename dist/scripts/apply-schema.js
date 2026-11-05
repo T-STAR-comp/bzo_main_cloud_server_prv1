@@ -21,6 +21,8 @@ const migrateV9 = node_path_1.default.resolve(rootDir, "schema-migrate-v9.sql");
 const migrateV10 = node_path_1.default.resolve(rootDir, "schema-migrate-v10.sql");
 const migrateV11 = node_path_1.default.resolve(rootDir, "schema-migrate-v11.sql");
 const migrateV12 = node_path_1.default.resolve(rootDir, "schema-migrate-v12.sql");
+const migrateV13 = node_path_1.default.resolve(rootDir, "schema-migrate-v13.sql");
+const migrateV14 = node_path_1.default.resolve(rootDir, "schema-migrate-v14.sql");
 function stripComments(sql) {
     return sql
         .split("\n")
@@ -113,6 +115,14 @@ async function main() {
         }
         if (node_fs_1.default.existsSync(migrateV12)) {
             const migrate = node_fs_1.default.readFileSync(migrateV12, "utf8");
+            await runStatements(conn, splitStatements(migrate));
+        }
+        if (node_fs_1.default.existsSync(migrateV13)) {
+            const migrate = node_fs_1.default.readFileSync(migrateV13, "utf8");
+            await runStatements(conn, splitStatements(migrate));
+        }
+        if (node_fs_1.default.existsSync(migrateV14)) {
+            const migrate = node_fs_1.default.readFileSync(migrateV14, "utf8");
             await runStatements(conn, splitStatements(migrate));
         }
         logger_js_1.logger.info("Schema applied successfully.");

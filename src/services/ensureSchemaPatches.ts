@@ -17,6 +17,7 @@ const MIGRATION_FILES = [
   "schema-migrate-v11.sql",
   "schema-migrate-v12.sql",
   "schema-migrate-v13.sql",
+  "schema-migrate-v14.sql",
 ];
 
 const SKIPPABLE_CODES = new Set([
@@ -191,6 +192,72 @@ const PATCHES: { name: string; sql: string }[] = [
       INDEX idx_tdr_sent (sent_at)
     ) ENGINE=InnoDB`,
   },
+  {
+    name: "agent_role_enum",
+    sql: `ALTER TABLE users MODIFY role ENUM('user','admin','agent') NOT NULL DEFAULT 'user'`,
+  },
+  {
+    name: "agent_commission_tables",
+    sql: `CREATE TABLE IF NOT EXISTS commission_agents (
+      id CHAR(36) NOT NULL PRIMARY KEY,
+      user_id CHAR(36) NOT NULL UNIQUE,
+      full_name VARCHAR(150) NOT NULL,
+      phone VARCHAR(32) NULL,
+      email VARCHAR(255) NOT NULL UNIQUE,
+      commission_percentage DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+      agent_code VARCHAR(32) NOT NULL UNIQUE,
+      referral_link VARCHAR(512) NOT NULL,
+      status ENUM('active','paused','suspended') NOT NULL DEFAULT 'active',
+      notes TEXT NULL,
+      created_by_admin CHAR(36) NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_commission_agents_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      KEY idx_commission_agents_status (status),
+      KEY idx_commission_agents_code (agent_code)
+    ) ENGINE=InnoDB`,
+  },
+  {
+    name: "agent_sale_records",
+    sql: `CREATE TABLE IF NOT EXISTS commission_agent_records (
+      id CHAR(36) NOT NULL PRIMARY KEY,
+      agent_id CHAR(36) NOT NULL,
+      user_id CHAR(36) NULL,
+      application_id CHAR(36) NULL,
+      sale_amount_mwk DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+      commission_amount_mwk DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+      sale_date DATETIME NOT NULL,
+      source ENUM('checkout','manual','adjustment') NOT NULL DEFAULT 'checkout',
+      source_reference VARCHAR(120) NULL,
+      note TEXT NULL,
+      created_by_admin CHAR(36) NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_agent_records_agent FOREIGN KEY (agent_id) REFERENCES commission_agents(id) ON DELETE CASCADE,
+      KEY idx_agent_records_agent_date (agent_id, sale_date),
+      KEY idx_agent_records_user (user_id)
+    ) ENGINE=InnoDB`,
+  },
+  {
+    name: "agent_sale_application_unique",
+    sql: `ALTER TABLE commission_agent_records ADD UNIQUE KEY uq_agent_record_application (application_id)`,
+  },
+  {
+    name: "agent_redemptions",
+    sql: `CREATE TABLE IF NOT EXISTS commission_agent_redemptions (
+      id CHAR(36) NOT NULL PRIMARY KEY,
+      agent_id CHAR(36) NOT NULL,
+      amount_mwk DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+      note TEXT NULL,
+      created_by_admin CHAR(36) NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_agent_redemptions_agent FOREIGN KEY (agent_id) REFERENCES commission_agents(id) ON DELETE CASCADE,
+      KEY idx_agent_redemptions_agent (agent_id, created_at)
+    ) ENGINE=InnoDB`,
+  },
+  {
+    name: "flight_applications_agent_fields",
+    sql: `ALTER TABLE flight_applications ADD COLUMN agent_id CHAR(36) NULL AFTER user_id, ADD COLUMN agent_code VARCHAR(32) NULL AFTER agent_id, ADD COLUMN agent_commission_mwk DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER agent_code`,
+  },
 ];
 
 export async function ensureSchemaPatches() {
@@ -202,7 +269,7 @@ export async function ensureSchemaPatches() {
       logger.info(`Schema patch applied: ${patch.name}`);
     } catch (error: unknown) {
       const code = (error as { code?: string }).code;
-      if (code === "ER_DUP_FIELDNAME") {
+      if (code === "ER_DUP_FIELDNAME" || code === "ER_DUP_KEYNAME") {
         continue;
       }
       logger.warn(`Schema patch skipped (${patch.name}): ${(error as Error).message}`);

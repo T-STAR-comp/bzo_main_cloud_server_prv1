@@ -17,6 +17,18 @@ exports.accountRouter.get("/me", (0, errorHandler_js_1.asyncHandler)(async (req,
     const user = users[0];
     if (!user)
         throw new errorHandler_js_1.AppError(404, "User not found");
+    let agentProfile = null;
+    if (user.role === "agent") {
+        const [agentRows] = await pool_js_1.pool.execute(`
+        SELECT ca.*, 
+          COALESCE((SELECT SUM(sale_amount_mwk) FROM commission_agent_records WHERE agent_id = ca.id), 0) AS total_sales_mwk,
+          COALESCE((SELECT SUM(commission_amount_mwk) FROM commission_agent_records WHERE agent_id = ca.id), 0) AS total_commission_mwk,
+          COALESCE((SELECT SUM(amount_mwk) FROM commission_agent_redemptions WHERE agent_id = ca.id), 0) AS redeemed_mwk
+        FROM commission_agents ca
+        WHERE ca.user_id = :userId
+      `, { userId });
+        agentProfile = agentRows[0] ?? null;
+    }
     const [prefs] = await pool_js_1.pool.execute(`SELECT * FROM user_preferences WHERE user_id = :userId`, { userId });
     const [credit] = await pool_js_1.pool.execute(`SELECT balance_mwk FROM travel_credit WHERE user_id = :userId`, { userId });
     const [bookings] = await pool_js_1.pool.execute(`SELECT * FROM bookings WHERE user_id = :userId ORDER BY depart_at DESC`, { userId });
@@ -34,7 +46,134 @@ exports.accountRouter.get("/me", (0, errorHandler_js_1.asyncHandler)(async (req,
         travelCreditMwk: credit[0]?.balance_mwk ?? 0,
         bookings: bookings.map(mapBooking),
         tickets: tickets.map(mapTicket),
+        agentProfile,
     });
+}));
+async function loadAgentSummary(userId) {
+    const [agentRows] = await pool_js_1.pool.execute(`SELECT ca.*, u.first_name, u.last_name, u.email, u.phone,
+      COALESCE((SELECT SUM(sale_amount_mwk) FROM commission_agent_records WHERE agent_id = ca.id), 0) AS total_sales_mwk,
+      COALESCE((SELECT SUM(commission_amount_mwk) FROM commission_agent_records WHERE agent_id = ca.id), 0) AS total_commission_mwk,
+      COALESCE((SELECT SUM(amount_mwk) FROM commission_agent_redemptions WHERE agent_id = ca.id), 0) AS redeemed_mwk
+     FROM commission_agents ca
+     JOIN users u ON u.id = ca.user_id
+     WHERE ca.user_id = :userId`, { userId });
+    const agent = agentRows[0];
+    if (!agent)
+        throw new errorHandler_js_1.AppError(404, "Agent profile not found");
+    const [records] = await pool_js_1.pool.execute(`SELECT * FROM commission_agent_records WHERE agent_id = :agentId ORDER BY sale_date DESC, created_at DESC LIMIT 60`, { agentId: agent.id });
+    const [redemptions] = await pool_js_1.pool.execute(`SELECT * FROM commission_agent_redemptions WHERE agent_id = :agentId ORDER BY created_at DESC LIMIT 50`, { agentId: agent.id });
+    const [months] = await pool_js_1.pool.execute(`SELECT DATE_FORMAT(sale_date, '%Y-%m') AS month_key,
+            COALESCE(SUM(sale_amount_mwk), 0) AS sales_mwk,
+            COALESCE(SUM(commission_amount_mwk), 0) AS commission_mwk
+     FROM commission_agent_records
+     WHERE agent_id = :agentId
+     GROUP BY month_key
+     ORDER BY month_key DESC
+     LIMIT 12`, { agentId: agent.id });
+    const gross = Number(agent.total_commission_mwk ?? 0);
+    const redeemed = Number(agent.redeemed_mwk ?? 0);
+    return {
+        agent: {
+            id: agent.id,
+            userId: agent.user_id,
+            fullName: agent.full_name,
+            email: agent.email,
+            phone: agent.phone,
+            percentage: Number(agent.commission_percentage),
+            status: agent.status,
+            agentCode: agent.agent_code,
+            referralLink: agent.referral_link,
+            commissionTotalMwk: gross,
+            redeemedMwk: redeemed,
+            payableBalanceMwk: Math.max(gross - redeemed, 0),
+            createdAt: new Date(agent.created_at).toISOString(),
+            updatedAt: new Date(agent.updated_at).toISOString(),
+        },
+        monthlyBreakdown: months.map((row) => ({
+            month: String(row.month_key),
+            salesMwk: Number(row.sales_mwk ?? 0),
+            commissionMwk: Number(row.commission_mwk ?? 0),
+        })),
+        records: records.map((row) => ({
+            id: row.id,
+            saleDate: new Date(row.sale_date).toISOString(),
+            amountMwk: Number(row.sale_amount_mwk ?? 0),
+            commissionAmountMwk: Number(row.commission_amount_mwk ?? 0),
+            source: row.source,
+            note: row.note ?? null,
+        })),
+        redemptions: redemptions.map((row) => ({
+            id: row.id,
+            amountMwk: Number(row.amount_mwk ?? 0),
+            note: row.note ?? null,
+            createdAt: new Date(row.created_at).toISOString(),
+        })),
+    };
+}
+exports.accountRouter.get("/agent/summary", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
+    if (req.user.role !== "agent") {
+        throw new errorHandler_js_1.AppError(403, "Agent access required");
+    }
+    const summary = await loadAgentSummary(req.user.id);
+    res.json(summary);
+}));
+exports.accountRouter.post("/agent/regenerate-link", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
+    if (req.user.role !== "agent") {
+        throw new errorHandler_js_1.AppError(403, "Agent access required");
+    }
+    const code = `AG-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+    const link = `${process.env.PUBLIC_APP_URL ?? process.env.CLIENT_ORIGIN ?? "http://localhost:3000"}`.replace(/\/$/, "") + `/?agent=${encodeURIComponent(code)}`;
+    await pool_js_1.pool.execute(`UPDATE commission_agents SET agent_code = :code, referral_link = :link, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`, { code, link, userId: req.user.id });
+    res.json({ code, link, message: "Agent referral link regenerated." });
+}));
+exports.accountRouter.patch("/agent/profile", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
+    if (req.user.role !== "agent") {
+        throw new errorHandler_js_1.AppError(403, "Agent access required");
+    }
+    const schema = zod_1.z.object({
+        firstName: zod_1.z.string().min(1).max(100).optional(),
+        lastName: zod_1.z.string().min(1).max(100).optional(),
+        phone: zod_1.z.string().max(32).nullable().optional(),
+        fullName: zod_1.z.string().min(1).max(150).optional(),
+        notes: zod_1.z.string().max(2000).nullable().optional(),
+    });
+    const body = schema.parse(req.body);
+    const updates = [];
+    const params = { userId: req.user.id };
+    if (body.firstName !== undefined) {
+        updates.push("first_name = :firstName");
+        params.firstName = body.firstName;
+    }
+    if (body.lastName !== undefined) {
+        updates.push("last_name = :lastName");
+        params.lastName = body.lastName;
+    }
+    if (body.phone !== undefined) {
+        updates.push("phone = :phone");
+        params.phone = body.phone;
+    }
+    if (updates.length > 0) {
+        await pool_js_1.pool.execute(`UPDATE users SET ${updates.join(", ")} WHERE id = :userId`, params);
+    }
+    const agentUpdates = [];
+    const agentParams = { userId: req.user.id };
+    if (body.fullName !== undefined) {
+        agentUpdates.push("full_name = :fullName");
+        agentParams.fullName = body.fullName;
+    }
+    if (body.phone !== undefined) {
+        agentUpdates.push("phone = :phone");
+        agentParams.phone = body.phone;
+    }
+    if (body.notes !== undefined) {
+        agentUpdates.push("notes = :notes");
+        agentParams.notes = body.notes;
+    }
+    if (agentUpdates.length > 0) {
+        await pool_js_1.pool.execute(`UPDATE commission_agents SET ${agentUpdates.join(", ")} WHERE user_id = :userId`, agentParams);
+    }
+    const summary = await loadAgentSummary(req.user.id);
+    res.json({ message: "Agent profile updated.", agent: summary.agent });
 }));
 const profileSchema = zod_1.z.object({
     firstName: zod_1.z.string().min(1).max(100).optional(),

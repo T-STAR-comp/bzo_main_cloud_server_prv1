@@ -18,6 +18,7 @@ const fileStorage_js_1 = require("../services/fileStorage.js");
 const manualPaymentSources_js_1 = require("../services/manualPaymentSources.js");
 const manualPayments_js_1 = require("../services/manualPayments.js");
 const travelCredits_js_1 = require("../services/travelCredits.js");
+const mailer_js_1 = require("../services/mailer.js");
 const crypto_js_1 = require("../utils/crypto.js");
 exports.adminRouter = (0, express_1.Router)();
 exports.adminRouter.use(auth_js_1.authenticate, auth_js_1.requireAdmin);
@@ -87,6 +88,335 @@ function formatUserSummary(row) {
         creditBalance: Number(row.credit_balance ?? 0),
     };
 }
+function generateAgentCode() {
+    return `AG-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+}
+function generateAgentPassword() {
+    return `Bz${Math.random().toString(36).slice(2, 8)}!${Math.random().toString(36).slice(2, 6)}`.slice(0, 16);
+}
+function buildAgentReferralLink(code) {
+    const base = (process.env.PUBLIC_APP_URL ?? process.env.CLIENT_ORIGIN ?? "http://localhost:3000").replace(/\/$/, "");
+    return `${base}/?agent=${encodeURIComponent(code)}`;
+}
+exports.adminRouter.get("/agents", (0, errorHandler_js_1.asyncHandler)(async (_req, res) => {
+    const [rows] = await pool_js_1.pool.execute(`
+      SELECT ca.*, u.first_name AS user_first_name, u.last_name AS user_last_name, u.status AS user_status,
+        COALESCE((SELECT SUM(commission_amount_mwk) FROM commission_agent_records WHERE agent_id = ca.id), 0) AS total_commission_mwk,
+        COALESCE((SELECT SUM(amount_mwk) FROM commission_agent_redemptions WHERE agent_id = ca.id), 0) AS redeemed_mwk
+      FROM commission_agents ca
+      JOIN users u ON u.id = ca.user_id
+      ORDER BY ca.created_at DESC
+    `);
+    res.json({
+        agents: rows.map((row) => ({
+            id: row.id,
+            userId: row.user_id,
+            fullName: row.full_name,
+            email: row.email,
+            phone: row.phone,
+            status: row.status,
+            percentage: Number(row.commission_percentage ?? 0),
+            agentCode: row.agent_code,
+            referralLink: row.referral_link,
+            notes: row.notes ?? null,
+            totalCommissionMwk: Number(row.total_commission_mwk ?? 0),
+            redeemedMwk: Number(row.redeemed_mwk ?? 0),
+            payableBalanceMwk: Math.max(Number(row.total_commission_mwk ?? 0) - Number(row.redeemed_mwk ?? 0), 0),
+            userStatus: row.user_status,
+            createdAt: new Date(row.created_at).toISOString(),
+        })),
+    });
+}));
+exports.adminRouter.get("/agents/:id", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
+    const agentId = zod_1.z.string().uuid().parse(req.params.id);
+    const [rows] = await pool_js_1.pool.execute(`
+      SELECT ca.*, u.first_name AS user_first_name, u.last_name AS user_last_name, u.status AS user_status,
+        COALESCE((SELECT SUM(commission_amount_mwk) FROM commission_agent_records WHERE agent_id = ca.id), 0) AS total_commission_mwk,
+        COALESCE((SELECT SUM(amount_mwk) FROM commission_agent_redemptions WHERE agent_id = ca.id), 0) AS redeemed_mwk
+      FROM commission_agents ca
+      JOIN users u ON u.id = ca.user_id
+      WHERE ca.id = :agentId
+    `, { agentId });
+    const row = rows[0];
+    if (!row)
+        throw new errorHandler_js_1.AppError(404, "Agent not found");
+    const [sales] = await pool_js_1.pool.execute(`SELECT * FROM commission_agent_records WHERE agent_id = :agentId ORDER BY sale_date DESC, created_at DESC`, { agentId });
+    const [redemptions] = await pool_js_1.pool.execute(`SELECT * FROM commission_agent_redemptions WHERE agent_id = :agentId ORDER BY created_at DESC`, { agentId });
+    res.json({
+        agent: {
+            id: row.id,
+            userId: row.user_id,
+            fullName: row.full_name,
+            email: row.email,
+            phone: row.phone,
+            status: row.status,
+            percentage: Number(row.commission_percentage ?? 0),
+            agentCode: row.agent_code,
+            referralLink: row.referral_link,
+            notes: row.notes ?? null,
+            totalCommissionMwk: Number(row.total_commission_mwk ?? 0),
+            redeemedMwk: Number(row.redeemed_mwk ?? 0),
+            payableBalanceMwk: Math.max(Number(row.total_commission_mwk ?? 0) - Number(row.redeemed_mwk ?? 0), 0),
+            userStatus: row.user_status,
+            createdAt: new Date(row.created_at).toISOString(),
+        },
+        sales: sales.map((sale) => ({
+            id: sale.id,
+            saleDate: new Date(sale.sale_date).toISOString(),
+            amountMwk: Number(sale.sale_amount_mwk ?? 0),
+            commissionAmountMwk: Number(sale.commission_amount_mwk ?? 0),
+            source: sale.source,
+            note: sale.note ?? null,
+        })),
+        redemptions: redemptions.map((entry) => ({
+            id: entry.id,
+            amountMwk: Number(entry.amount_mwk ?? 0),
+            note: entry.note ?? null,
+            createdAt: new Date(entry.created_at).toISOString(),
+        })),
+    });
+}));
+const createAgentSchema = zod_1.z.object({
+    firstName: zod_1.z.string().min(1).max(100),
+    lastName: zod_1.z.string().min(1).max(100),
+    email: zod_1.z.string().email(),
+    phone: zod_1.z.string().max(32).optional().nullable(),
+    percentage: zod_1.z.number().min(0).max(100).default(10),
+    notes: zod_1.z.string().max(2000).optional().nullable(),
+});
+exports.adminRouter.post("/agents", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
+    const body = createAgentSchema.parse(req.body);
+    const email = body.email.toLowerCase();
+    const [existing] = await pool_js_1.pool.execute(`SELECT id FROM users WHERE email = :email`, { email });
+    if (existing[0])
+        throw new errorHandler_js_1.AppError(409, "An account already exists for this email");
+    const userId = (0, uuid_1.v4)();
+    const password = generateAgentPassword();
+    const passwordHash = await (0, crypto_js_1.hashPassword)(password);
+    const agentId = (0, uuid_1.v4)();
+    const agentCode = generateAgentCode();
+    const referralLink = buildAgentReferralLink(agentCode);
+    await pool_js_1.pool.execute(`INSERT INTO users (id, email, password_hash, first_name, last_name, phone, role, status, email_verified_at)
+       VALUES (:id, :email, :passwordHash, :firstName, :lastName, :phone, 'agent', 'active', UTC_TIMESTAMP())`, {
+        id: userId,
+        email,
+        passwordHash,
+        firstName: body.firstName,
+        lastName: body.lastName,
+        phone: body.phone ?? null,
+    });
+    await pool_js_1.pool.execute(`INSERT INTO user_preferences (user_id) VALUES (:userId)`, { userId });
+    await pool_js_1.pool.execute(`INSERT INTO travel_credit (user_id, balance_mwk) VALUES (:userId, 0)`, { userId });
+    await pool_js_1.pool.execute(`INSERT INTO commission_agents (id, user_id, full_name, phone, email, commission_percentage, agent_code, referral_link, status, notes, created_by_admin)
+       VALUES (:id, :userId, :fullName, :phone, :email, :commissionPercentage, :agentCode, :referralLink, 'active', :notes, :adminId)`, {
+        id: agentId,
+        userId,
+        fullName: `${body.firstName} ${body.lastName}`.trim(),
+        phone: body.phone ?? null,
+        email,
+        commissionPercentage: Number(body.percentage),
+        agentCode,
+        referralLink,
+        notes: body.notes ?? null,
+        adminId: req.user.id,
+    });
+    await (0, mailer_js_1.sendMail)({
+        to: email,
+        subject: "Your Biazo agent account is ready",
+        text: `Hello ${body.firstName},\n\nYour Biazo commission agent account has been created.\n\nEmail: ${email}\nPassword: ${password}\nAgent code: ${agentCode}\nReferral link: ${referralLink}\n\nLog in at the Biazo website and use the details above to manage your commissions.`,
+    });
+    await (0, audit_js_1.writeAuditLog)({
+        userId: req.user.id,
+        action: "admin.agent_created",
+        metadata: { agentId, userId, email, agentCode, percentage: body.percentage },
+        ipAddress: req.ip ?? null,
+    });
+    res.status(201).json({
+        message: "Agent created and credentials sent by email.",
+        agent: {
+            id: agentId,
+            userId,
+            fullName: `${body.firstName} ${body.lastName}`.trim(),
+            email,
+            phone: body.phone ?? null,
+            percentage: Number(body.percentage),
+            agentCode,
+            referralLink,
+            status: "active",
+        },
+    });
+}));
+const updateAgentSchema = zod_1.z.object({
+    fullName: zod_1.z.string().min(1).max(150).optional(),
+    email: zod_1.z.string().email().max(255).optional(),
+    phone: zod_1.z.string().max(32).nullable().optional(),
+    percentage: zod_1.z.number().min(0).max(100).optional(),
+    status: zod_1.z.enum(["active", "paused", "suspended"]).optional(),
+    notes: zod_1.z.string().max(2000).nullable().optional(),
+});
+exports.adminRouter.patch("/agents/:id", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
+    const agentId = zod_1.z.string().uuid().parse(req.params.id);
+    const body = updateAgentSchema.parse(req.body);
+    const [agentRows] = await pool_js_1.pool.execute(`SELECT * FROM commission_agents WHERE id = :agentId`, { agentId });
+    const agent = agentRows[0];
+    if (!agent)
+        throw new errorHandler_js_1.AppError(404, "Agent not found");
+    const email = body.email?.toLowerCase();
+    if (email && email !== agent.email) {
+        const [existing] = await pool_js_1.pool.execute(`SELECT id FROM users WHERE email = :email AND id <> :userId`, { email, userId: agent.user_id });
+        if (existing[0])
+            throw new errorHandler_js_1.AppError(409, "An account already exists for this email");
+    }
+    const updates = [];
+    const params = { agentId };
+    if (body.fullName !== undefined) {
+        updates.push("full_name = :fullName");
+        params.fullName = body.fullName;
+    }
+    if (email !== undefined) {
+        updates.push("email = :email");
+        params.email = email;
+    }
+    if (body.phone !== undefined) {
+        updates.push("phone = :phone");
+        params.phone = body.phone;
+    }
+    if (body.percentage !== undefined) {
+        updates.push("commission_percentage = :percentage");
+        params.percentage = Number(body.percentage);
+    }
+    if (body.status !== undefined) {
+        updates.push("status = :status");
+        params.status = body.status;
+    }
+    if (body.notes !== undefined) {
+        updates.push("notes = :notes");
+        params.notes = body.notes;
+    }
+    if (updates.length === 0)
+        throw new errorHandler_js_1.AppError(400, "No updates provided");
+    await pool_js_1.pool.execute(`UPDATE commission_agents SET ${updates.join(", ")} WHERE id = :agentId`, params);
+    if (body.fullName !== undefined) {
+        const [names] = body.fullName.split(/\s+/);
+        const firstName = names[0] ?? "";
+        const lastName = body.fullName.replace(firstName, "").trim();
+        await pool_js_1.pool.execute(`UPDATE users SET first_name = :firstName, last_name = :lastName WHERE id = :userId`, {
+            firstName,
+            lastName,
+            userId: agent.user_id,
+        });
+    }
+    if (email !== undefined) {
+        await pool_js_1.pool.execute(`UPDATE users SET email = :email WHERE id = :userId`, {
+            email,
+            userId: agent.user_id,
+        });
+    }
+    if (body.phone !== undefined) {
+        await pool_js_1.pool.execute(`UPDATE users SET phone = :phone WHERE id = :userId`, {
+            phone: body.phone,
+            userId: agent.user_id,
+        });
+    }
+    await (0, audit_js_1.writeAuditLog)({
+        userId: req.user.id,
+        action: "admin.agent_updated",
+        metadata: { agentId, ...body },
+        ipAddress: req.ip ?? null,
+    });
+    const [updated] = await pool_js_1.pool.execute(`SELECT * FROM commission_agents WHERE id = :agentId`, { agentId });
+    res.json({ agent: updated[0] });
+}));
+exports.adminRouter.post("/agents/:id/regenerate-link", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
+    const agentId = zod_1.z.string().uuid().parse(req.params.id);
+    const [rows] = await pool_js_1.pool.execute(`SELECT * FROM commission_agents WHERE id = :agentId`, { agentId });
+    const agent = rows[0];
+    if (!agent)
+        throw new errorHandler_js_1.AppError(404, "Agent not found");
+    const code = generateAgentCode();
+    const link = buildAgentReferralLink(code);
+    await pool_js_1.pool.execute(`UPDATE commission_agents SET agent_code = :code, referral_link = :link, updated_at = UTC_TIMESTAMP() WHERE id = :agentId`, { code, link, agentId });
+    await (0, audit_js_1.writeAuditLog)({
+        userId: req.user.id,
+        action: "admin.agent_link_regenerated",
+        metadata: { agentId, code },
+        ipAddress: req.ip ?? null,
+    });
+    res.json({ code, link, message: "Agent referral code regenerated." });
+}));
+const createAgentSaleSchema = zod_1.z.object({
+    saleDate: zod_1.z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    amountMwk: zod_1.z.number().positive(),
+    note: zod_1.z.string().max(500).optional().nullable(),
+});
+exports.adminRouter.post("/agents/:id/sales", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
+    const agentId = zod_1.z.string().uuid().parse(req.params.id);
+    const body = createAgentSaleSchema.parse(req.body);
+    const [rows] = await pool_js_1.pool.execute(`SELECT * FROM commission_agents WHERE id = :agentId`, { agentId });
+    const agent = rows[0];
+    if (!agent)
+        throw new errorHandler_js_1.AppError(404, "Agent not found");
+    const commissionAmount = Number(body.amountMwk) * (Number(agent.commission_percentage) / 100);
+    const recordId = (0, uuid_1.v4)();
+    await pool_js_1.pool.execute(`INSERT INTO commission_agent_records (id, agent_id, sale_amount_mwk, commission_amount_mwk, sale_date, source, note, created_by_admin)
+       VALUES (:id, :agentId, :amount, :commission, :saleDate, 'manual', :note, :adminId)`, {
+        id: recordId,
+        agentId,
+        amount: Number(body.amountMwk),
+        commission: commissionAmount,
+        saleDate: `${body.saleDate} 00:00:00`,
+        note: body.note ?? null,
+        adminId: req.user.id,
+    });
+    await (0, audit_js_1.writeAuditLog)({
+        userId: req.user.id,
+        action: "admin.agent_sale_recorded",
+        metadata: { agentId, amountMwk: body.amountMwk, commissionAmountMwk: commissionAmount },
+        ipAddress: req.ip ?? null,
+    });
+    res.status(201).json({
+        message: "Agent sale recorded.",
+        commissionAmountMwk: commissionAmount,
+    });
+}));
+const createAgentRedemptionSchema = zod_1.z.object({
+    amountMwk: zod_1.z.number().positive(),
+    note: zod_1.z.string().max(500).optional().nullable(),
+});
+exports.adminRouter.post("/agents/:id/redemptions", (0, errorHandler_js_1.asyncHandler)(async (req, res) => {
+    const agentId = zod_1.z.string().uuid().parse(req.params.id);
+    const body = createAgentRedemptionSchema.parse(req.body);
+    const conn = await pool_js_1.pool.getConnection();
+    try {
+        await conn.beginTransaction();
+        const [agents] = await conn.execute(`SELECT id FROM commission_agents WHERE id = :agentId FOR UPDATE`, { agentId });
+        if (!agents[0])
+            throw new errorHandler_js_1.AppError(404, "Agent not found");
+        const [commissionRows] = await conn.execute(`SELECT COALESCE(SUM(commission_amount_mwk), 0) AS total FROM commission_agent_records WHERE agent_id = :agentId`, { agentId });
+        const [redemptionRows] = await conn.execute(`SELECT COALESCE(SUM(amount_mwk), 0) AS total FROM commission_agent_redemptions WHERE agent_id = :agentId`, { agentId });
+        const available = Number(commissionRows[0]?.total ?? 0) - Number(redemptionRows[0]?.total ?? 0);
+        if (body.amountMwk > available) {
+            throw new errorHandler_js_1.AppError(400, "Redemption exceeds agent payable balance");
+        }
+        await conn.execute(`INSERT INTO commission_agent_redemptions (id, agent_id, amount_mwk, note, created_by_admin)
+         VALUES (:id, :agentId, :amount, :note, :adminId)`, { id: (0, uuid_1.v4)(), agentId, amount: body.amountMwk, note: body.note ?? null, adminId: req.user.id });
+        await conn.commit();
+    }
+    catch (error) {
+        await conn.rollback();
+        throw error;
+    }
+    finally {
+        conn.release();
+    }
+    await (0, audit_js_1.writeAuditLog)({
+        userId: req.user.id,
+        action: "admin.agent_redemption_recorded",
+        metadata: { agentId, amountMwk: body.amountMwk, note: body.note ?? null },
+        ipAddress: req.ip ?? null,
+    });
+    res.status(201).json({ message: "Agent redemption recorded." });
+}));
 exports.adminRouter.get("/stats", (0, errorHandler_js_1.asyncHandler)(async (_req, res) => {
     const [[users]] = await pool_js_1.pool.execute(`SELECT
         COUNT(*) AS total,
