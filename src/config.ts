@@ -38,6 +38,26 @@ function parseClientOrigins(): string[] {
   throw new Error("Missing environment variable: CLIENT_ORIGIN");
 }
 
+function parsePublicAppUrl(clientOrigins: string[]): string {
+  const raw = process.env.PUBLIC_APP_URL?.trim();
+  const candidate = raw ? raw.split(",")[0].trim() : clientOrigins[0];
+  let url: URL;
+
+  try {
+    url = new URL(candidate);
+  } catch {
+    throw new Error("PUBLIC_APP_URL must be an absolute HTTP or HTTPS URL");
+  }
+
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("PUBLIC_APP_URL must be an absolute HTTP or HTTPS URL");
+  }
+
+  return url.origin;
+}
+
+const clientOrigins = parseClientOrigins();
+
 export const config = {
   port: Number(process.env.PORT ?? 4000),
   nodeEnv: process.env.NODE_ENV ?? "development",
@@ -54,7 +74,8 @@ export const config = {
     accessTtl: process.env.ACCESS_TOKEN_TTL ?? "15m",
     refreshTtl: process.env.REFRESH_TOKEN_TTL ?? "7d",
   },
-  clientOrigins: parseClientOrigins(),
+  clientOrigins,
+  publicAppUrl: parsePublicAppUrl(clientOrigins),
   smtp: {
     host: process.env.SMTP_HOST ?? "",
     port: Number(process.env.SMTP_PORT ?? 587),

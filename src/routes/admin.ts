@@ -5,6 +5,7 @@ import { z } from "zod";
 import { pool } from "../db/pool.js";
 import { authenticate, requireAdmin, type AuthedRequest } from "../middleware/auth.js";
 import { asyncHandler, AppError } from "../middleware/errorHandler.js";
+import { buildAgentReferralLink } from "../services/agentReferralLink.js";
 import { mapLedgerPublic, type PaymentLedgerRow } from "../services/paymentLedger.js";
 import { sendFinancialReport } from "../services/financialReports.js";
 import { getPlatformSettings, updatePlatformSettings } from "../services/platformSettings.js";
@@ -114,11 +115,6 @@ function generateAgentPassword() {
   return `Bz${Math.random().toString(36).slice(2, 8)}!${Math.random().toString(36).slice(2, 6)}`.slice(0, 16);
 }
 
-function buildAgentReferralLink(code: string) {
-  const base = (process.env.PUBLIC_APP_URL ?? process.env.CLIENT_ORIGIN ?? "http://localhost:3000").replace(/\/$/, "");
-  return `${base}/?agent=${encodeURIComponent(code)}`;
-}
-
 adminRouter.get(
   "/agents",
   asyncHandler(async (_req, res) => {
@@ -141,7 +137,7 @@ adminRouter.get(
         status: row.status,
         percentage: Number(row.commission_percentage ?? 0),
         agentCode: row.agent_code,
-        referralLink: row.referral_link,
+        referralLink: buildAgentReferralLink(String(row.agent_code)),
         notes: row.notes ?? null,
         totalCommissionMwk: Number(row.total_commission_mwk ?? 0),
         redeemedMwk: Number(row.redeemed_mwk ?? 0),
@@ -182,7 +178,7 @@ adminRouter.get(
         status: row.status,
         percentage: Number(row.commission_percentage ?? 0),
         agentCode: row.agent_code,
-        referralLink: row.referral_link,
+        referralLink: buildAgentReferralLink(String(row.agent_code)),
         notes: row.notes ?? null,
         totalCommissionMwk: Number(row.total_commission_mwk ?? 0),
         redeemedMwk: Number(row.redeemed_mwk ?? 0),

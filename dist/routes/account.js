@@ -6,6 +6,7 @@ const zod_1 = require("zod");
 const pool_js_1 = require("../db/pool.js");
 const auth_js_1 = require("../middleware/auth.js");
 const errorHandler_js_1 = require("../middleware/errorHandler.js");
+const agentReferralLink_js_1 = require("../services/agentReferralLink.js");
 const audit_js_1 = require("../services/audit.js");
 const travelCredits_js_1 = require("../services/travelCredits.js");
 const ticketUtils_js_1 = require("../services/ticketUtils.js");
@@ -82,7 +83,7 @@ async function loadAgentSummary(userId) {
             percentage: Number(agent.commission_percentage),
             status: agent.status,
             agentCode: agent.agent_code,
-            referralLink: agent.referral_link,
+            referralLink: (0, agentReferralLink_js_1.buildAgentReferralLink)(String(agent.agent_code)),
             commissionTotalMwk: gross,
             redeemedMwk: redeemed,
             payableBalanceMwk: Math.max(gross - redeemed, 0),
@@ -122,7 +123,7 @@ exports.accountRouter.post("/agent/regenerate-link", (0, errorHandler_js_1.async
         throw new errorHandler_js_1.AppError(403, "Agent access required");
     }
     const code = `AG-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-    const link = `${process.env.PUBLIC_APP_URL ?? process.env.CLIENT_ORIGIN ?? "http://localhost:3000"}`.replace(/\/$/, "") + `/?agent=${encodeURIComponent(code)}`;
+    const link = (0, agentReferralLink_js_1.buildAgentReferralLink)(code);
     await pool_js_1.pool.execute(`UPDATE commission_agents SET agent_code = :code, referral_link = :link, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`, { code, link, userId: req.user.id });
     res.json({ code, link, message: "Agent referral link regenerated." });
 }));

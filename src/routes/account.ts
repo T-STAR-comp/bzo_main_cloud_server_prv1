@@ -4,6 +4,7 @@ import { z } from "zod";
 import { pool } from "../db/pool.js";
 import { authenticate, type AuthedRequest } from "../middleware/auth.js";
 import { asyncHandler, AppError } from "../middleware/errorHandler.js";
+import { buildAgentReferralLink } from "../services/agentReferralLink.js";
 import { writeAuditLog, publicUser, type UserRow } from "../services/audit.js";
 import { searchTravelCreditRecipients, shareTravelCredit } from "../services/travelCredits.js";
 import { ticketDisplayStatus } from "../services/ticketUtils.js";
@@ -118,7 +119,7 @@ async function loadAgentSummary(userId: string) {
       percentage: Number(agent.commission_percentage),
       status: agent.status,
       agentCode: agent.agent_code,
-      referralLink: agent.referral_link,
+      referralLink: buildAgentReferralLink(String(agent.agent_code)),
       commissionTotalMwk: gross,
       redeemedMwk: redeemed,
       payableBalanceMwk: Math.max(gross - redeemed, 0),
@@ -167,7 +168,7 @@ accountRouter.post(
     }
 
     const code = `AG-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-    const link = `${process.env.PUBLIC_APP_URL ?? process.env.CLIENT_ORIGIN ?? "http://localhost:3000"}`.replace(/\/$/, "") + `/?agent=${encodeURIComponent(code)}`;
+    const link = buildAgentReferralLink(code);
 
     await pool.execute(
       `UPDATE commission_agents SET agent_code = :code, referral_link = :link, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`,

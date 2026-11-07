@@ -7,6 +7,7 @@ const zod_1 = require("zod");
 const pool_js_1 = require("../db/pool.js");
 const auth_js_1 = require("../middleware/auth.js");
 const errorHandler_js_1 = require("../middleware/errorHandler.js");
+const agentReferralLink_js_1 = require("../services/agentReferralLink.js");
 const paymentLedger_js_1 = require("../services/paymentLedger.js");
 const financialReports_js_1 = require("../services/financialReports.js");
 const platformSettings_js_1 = require("../services/platformSettings.js");
@@ -94,10 +95,6 @@ function generateAgentCode() {
 function generateAgentPassword() {
     return `Bz${Math.random().toString(36).slice(2, 8)}!${Math.random().toString(36).slice(2, 6)}`.slice(0, 16);
 }
-function buildAgentReferralLink(code) {
-    const base = (process.env.PUBLIC_APP_URL ?? process.env.CLIENT_ORIGIN ?? "http://localhost:3000").replace(/\/$/, "");
-    return `${base}/?agent=${encodeURIComponent(code)}`;
-}
 exports.adminRouter.get("/agents", (0, errorHandler_js_1.asyncHandler)(async (_req, res) => {
     const [rows] = await pool_js_1.pool.execute(`
       SELECT ca.*, u.first_name AS user_first_name, u.last_name AS user_last_name, u.status AS user_status,
@@ -117,7 +114,7 @@ exports.adminRouter.get("/agents", (0, errorHandler_js_1.asyncHandler)(async (_r
             status: row.status,
             percentage: Number(row.commission_percentage ?? 0),
             agentCode: row.agent_code,
-            referralLink: row.referral_link,
+            referralLink: (0, agentReferralLink_js_1.buildAgentReferralLink)(String(row.agent_code)),
             notes: row.notes ?? null,
             totalCommissionMwk: Number(row.total_commission_mwk ?? 0),
             redeemedMwk: Number(row.redeemed_mwk ?? 0),
@@ -152,7 +149,7 @@ exports.adminRouter.get("/agents/:id", (0, errorHandler_js_1.asyncHandler)(async
             status: row.status,
             percentage: Number(row.commission_percentage ?? 0),
             agentCode: row.agent_code,
-            referralLink: row.referral_link,
+            referralLink: (0, agentReferralLink_js_1.buildAgentReferralLink)(String(row.agent_code)),
             notes: row.notes ?? null,
             totalCommissionMwk: Number(row.total_commission_mwk ?? 0),
             redeemedMwk: Number(row.redeemed_mwk ?? 0),
@@ -195,7 +192,7 @@ exports.adminRouter.post("/agents", (0, errorHandler_js_1.asyncHandler)(async (r
     const passwordHash = await (0, crypto_js_1.hashPassword)(password);
     const agentId = (0, uuid_1.v4)();
     const agentCode = generateAgentCode();
-    const referralLink = buildAgentReferralLink(agentCode);
+    const referralLink = (0, agentReferralLink_js_1.buildAgentReferralLink)(agentCode);
     await pool_js_1.pool.execute(`INSERT INTO users (id, email, password_hash, first_name, last_name, phone, role, status, email_verified_at)
        VALUES (:id, :email, :passwordHash, :firstName, :lastName, :phone, 'agent', 'active', UTC_TIMESTAMP())`, {
         id: userId,
@@ -334,7 +331,7 @@ exports.adminRouter.post("/agents/:id/regenerate-link", (0, errorHandler_js_1.as
     if (!agent)
         throw new errorHandler_js_1.AppError(404, "Agent not found");
     const code = generateAgentCode();
-    const link = buildAgentReferralLink(code);
+    const link = (0, agentReferralLink_js_1.buildAgentReferralLink)(code);
     await pool_js_1.pool.execute(`UPDATE commission_agents SET agent_code = :code, referral_link = :link, updated_at = UTC_TIMESTAMP() WHERE id = :agentId`, { code, link, agentId });
     await (0, audit_js_1.writeAuditLog)({
         userId: req.user.id,
