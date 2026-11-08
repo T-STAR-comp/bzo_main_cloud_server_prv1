@@ -513,7 +513,9 @@ export async function fulfillFlightApplicationInTransaction(
       { agentId: app.agent_id },
     );
     const percentage = Number(agents[0]?.commission_percentage ?? 0);
-    const commissionMwk = Math.round((Number(ledger.amount_mwk) * percentage / 100 + Number.EPSILON) * 100) / 100;
+    const profitAmountMwk =
+      app.profit_amount_mwk != null ? Number(app.profit_amount_mwk) : Number(ledger.amount_mwk);
+    const commissionMwk = Math.round((profitAmountMwk * percentage / 100 + Number.EPSILON) * 100) / 100;
 
     await conn.execute(
       `UPDATE flight_applications SET agent_commission_mwk = :commissionMwk WHERE id = :applicationId`,
@@ -535,7 +537,7 @@ export async function fulfillFlightApplicationInTransaction(
         saleAmountMwk: ledger.amount_mwk,
         commissionMwk,
         sourceReference: ledger.charge_id,
-        note: `Flight application ${app.reference_number ?? applicationId}`,
+        note: `Flight application ${app.reference_number ?? applicationId} (commission based on profit MWK ${profitAmountMwk.toLocaleString()})`,
       },
     );
   }

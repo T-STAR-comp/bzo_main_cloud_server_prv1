@@ -46,6 +46,7 @@ adminApplicationsRouter.get(
     res.json({
       applications: rows.map((row) => ({
         ...mapApplication(row),
+        profitAmountMwk: row.profit_amount_mwk != null ? Number(row.profit_amount_mwk) : null,
         customerEmail: row.email,
         customerName: `${row.first_name} ${row.last_name}`,
         customerPhone: row.phone,
@@ -86,6 +87,10 @@ adminApplicationsRouter.get(
 
     res.json({
       ...loaded,
+      application: {
+        ...loaded.application,
+        profitAmountMwk: loaded.raw.profit_amount_mwk != null ? Number(loaded.raw.profit_amount_mwk) : null,
+      },
       customer: {
         name: `${user.first_name} ${user.last_name}`,
         email: user.email,
@@ -112,6 +117,7 @@ const quoteSchema = z.object({
   quotedAirline: z.string().max(120).optional(),
   quotedFlightNumber: z.string().max(30).optional(),
   quotedPriceMwk: z.number().positive(),
+  profitAmountMwk: z.number().min(0),
   extraChargesMwk: z.number().min(0).optional(),
   extraChargesNote: z.string().max(1000).optional(),
   hotel: z
@@ -163,6 +169,9 @@ async function applyQuoteUpdate(
     extras: legacyExtras,
   });
   const totals = quoteTotals(quoteLineItems);
+  if (body.profitAmountMwk > totals.totalMwk) {
+    throw new AppError(400, "Profit amount cannot exceed the total quote price");
+  }
   const exchangeRatesJson =
     body.exchangeRates && Object.keys(body.exchangeRates).length > 0
       ? JSON.stringify(
@@ -187,6 +196,7 @@ async function applyQuoteUpdate(
       quoted_flight_number = :quotedFlightNumber,
       quoted_price_mwk = :quotedPriceMwk,
       extra_charges_mwk = :extraChargesMwk,
+      profit_amount_mwk = :profitAmountMwk,
       extra_charges_note = :extraChargesNote,
       quote_line_items = :quoteLineItems,
       quote_exchange_rates = COALESCE(:exchangeRates, quote_exchange_rates),
@@ -205,6 +215,7 @@ async function applyQuoteUpdate(
       quotedAirline: body.quotedAirline ?? null,
       quotedFlightNumber: body.quotedFlightNumber ?? null,
       quotedPriceMwk: body.quotedPriceMwk,
+      profitAmountMwk: body.profitAmountMwk,
       extraChargesMwk: totals.extrasMwk,
       extraChargesNote: body.extraChargesNote ?? null,
       quoteLineItems: JSON.stringify(quoteLineItems),

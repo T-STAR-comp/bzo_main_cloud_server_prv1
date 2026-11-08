@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS flight_applications (
   quoted_flight_number  VARCHAR(30)   NULL,
   quoted_price_mwk      DECIMAL(14,2) NULL,
   extra_charges_mwk     DECIMAL(14,2) NULL DEFAULT 0,
+  profit_amount_mwk     DECIMAL(14,2) NULL DEFAULT NULL,
   extra_charges_note    TEXT          NULL,
   is_alternate_offer    TINYINT(1)    NOT NULL DEFAULT 0,
   admin_message         TEXT          NULL,

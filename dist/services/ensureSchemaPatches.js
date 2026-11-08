@@ -22,6 +22,7 @@ const MIGRATION_FILES = [
     "schema-migrate-v12.sql",
     "schema-migrate-v13.sql",
     "schema-migrate-v14.sql",
+    "schema-migrate-v15.sql",
 ];
 const SKIPPABLE_CODES = new Set([
     "ER_DUP_FIELDNAME",
@@ -255,6 +256,10 @@ const PATCHES = [
     {
         name: "flight_applications_agent_fields",
         sql: `ALTER TABLE flight_applications ADD COLUMN agent_id CHAR(36) NULL AFTER user_id, ADD COLUMN agent_code VARCHAR(32) NULL AFTER agent_id, ADD COLUMN agent_commission_mwk DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER agent_code`,
+    },
+    {
+        name: "flight_applications.profit_amount_mwk",
+        sql: `ALTER TABLE flight_applications ADD COLUMN profit_amount_mwk DECIMAL(14,2) NULL DEFAULT NULL AFTER extra_charges_mwk`,
     },
 ];
 async function ensureSchemaPatches() {

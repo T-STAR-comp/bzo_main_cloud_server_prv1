@@ -23,6 +23,7 @@ exports.adminApplicationsRouter.get("/", (0, errorHandler_js_1.asyncHandler)(asy
     res.json({
         applications: rows.map((row) => ({
             ...(0, applications_js_1.mapApplication)(row),
+            profitAmountMwk: row.profit_amount_mwk != null ? Number(row.profit_amount_mwk) : null,
             customerEmail: row.email,
             customerName: `${row.first_name} ${row.last_name}`,
             customerPhone: row.phone,
@@ -52,6 +53,10 @@ exports.adminApplicationsRouter.get("/:id", (0, errorHandler_js_1.asyncHandler)(
     }
     res.json({
         ...loaded,
+        application: {
+            ...loaded.application,
+            profitAmountMwk: loaded.raw.profit_amount_mwk != null ? Number(loaded.raw.profit_amount_mwk) : null,
+        },
         customer: {
             name: `${user.first_name} ${user.last_name}`,
             email: user.email,
@@ -75,6 +80,7 @@ const quoteSchema = zod_1.z.object({
     quotedAirline: zod_1.z.string().max(120).optional(),
     quotedFlightNumber: zod_1.z.string().max(30).optional(),
     quotedPriceMwk: zod_1.z.number().positive(),
+    profitAmountMwk: zod_1.z.number().min(0),
     extraChargesMwk: zod_1.z.number().min(0).optional(),
     extraChargesNote: zod_1.z.string().max(1000).optional(),
     hotel: zod_1.z
@@ -118,6 +124,9 @@ async function applyQuoteUpdate(id, body, loaded, options) {
         extras: legacyExtras,
     });
     const totals = (0, quoteLineItems_js_1.quoteTotals)(quoteLineItems);
+    if (body.profitAmountMwk > totals.totalMwk) {
+        throw new errorHandler_js_1.AppError(400, "Profit amount cannot exceed the total quote price");
+    }
     const exchangeRatesJson = body.exchangeRates && Object.keys(body.exchangeRates).length > 0
         ? JSON.stringify(Object.fromEntries(Object.entries(body.exchangeRates).map(([k, v]) => [k.toUpperCase(), v])))
         : null;
@@ -135,6 +144,7 @@ async function applyQuoteUpdate(id, body, loaded, options) {
       quoted_flight_number = :quotedFlightNumber,
       quoted_price_mwk = :quotedPriceMwk,
       extra_charges_mwk = :extraChargesMwk,
+      profit_amount_mwk = :profitAmountMwk,
       extra_charges_note = :extraChargesNote,
       quote_line_items = :quoteLineItems,
       quote_exchange_rates = COALESCE(:exchangeRates, quote_exchange_rates),
@@ -152,6 +162,7 @@ async function applyQuoteUpdate(id, body, loaded, options) {
         quotedAirline: body.quotedAirline ?? null,
         quotedFlightNumber: body.quotedFlightNumber ?? null,
         quotedPriceMwk: body.quotedPriceMwk,
+        profitAmountMwk: body.profitAmountMwk,
         extraChargesMwk: totals.extrasMwk,
         extraChargesNote: body.extraChargesNote ?? null,
         quoteLineItems: JSON.stringify(quoteLineItems),
